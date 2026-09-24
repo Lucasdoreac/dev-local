@@ -111,7 +111,8 @@ services:
     restart: unless-stopped
     depends_on: [auth, internal, minio]
     volumes: [../python-services:/python-services]
-    env_file: [minio.env]
+    # internal.env traz INTERNAL_API_KEY: a chave que o api manda ao catálogo
+    env_file: [minio.env, internal.env]
     environment:
       MONGO_URI: mongodb://mongo:27017/
       MONGO_DATABASE: rooms-reservation-app

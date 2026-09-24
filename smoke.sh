@@ -19,7 +19,7 @@ mongo() { docker compose exec -T mongo mongosh --quiet rooms-reservation-app --e
 
 echo "[1/4] serviços"
 for u in http://127.0.0.1:3000/ http://127.0.0.1:5000/apidocs/ \
-         http://127.0.0.1:5050/apidocs/ http://127.0.0.1:5081/restapi/campus/ \
+         http://127.0.0.1:5050/apidocs/ http://127.0.0.1:5081/apispec.json \
          http://127.0.0.1:9000/minio/health/live; do
   ok=""
   for _ in $(seq 1 90); do
