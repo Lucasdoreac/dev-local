@@ -24,7 +24,7 @@ run_python_services() {
     -e FLASK_ENV=development \
     -e SERVER_NAME=localhost:5000 \
     labtech-python-services-tests \
-    sh -c "PYTHONPATH=src poetry run pytest src/Tests/log_test.py src/Tests/endpoints_tests.py src/Tests/send_emails_tests.py src/Tests/settings_tests.py src/Tests/auth_routes_tests.py src/Tests/courses_routes_tests.py src/Tests/offer_blocking_tests.py src/Tests/pdf_tests.py src/Tests/env_example_tests.py -v"
+    sh -c "PYTHONPATH=src poetry run pytest src/Tests/log_test.py src/Tests/endpoints_tests.py src/Tests/send_emails_tests.py src/Tests/settings_tests.py src/Tests/auth_routes_tests.py src/Tests/courses_routes_tests.py src/Tests/offer_blocking_tests.py src/Tests/pdf_tests.py src/Tests/env_example_tests.py src/Tests/server_scheme_tests.py -v"
 }
 
 run_internal_apis() {
