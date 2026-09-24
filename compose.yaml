@@ -88,6 +88,8 @@ services:
       MONGO_URI: mongodb://mongo:27017
       MONGO_DATABASE: rooms-reservation-app
       FLASK_ENV: development
+      # só em dev: o link de login volta na resposta (tela e scripts de captura o usam)
+      AUTH_DEV_RETURN_LINK: "true"
       REDIS_URL: redis://redis:6379/0
       REACT_APP: http://127.0.0.1:3000
     ports: ["127.0.0.1:5050:5050"]
