@@ -8,6 +8,7 @@
 #   ./run-tests.sh            # roda as duas suítes
 #   ./run-tests.sh python     # só python-services
 #   ./run-tests.sh internal   # só internal_apis
+#   ./run-tests.sh auth       # só auth_service
 set -uo pipefail
 cd "$(dirname "$0")"
 LAB=$(cd .. && pwd)
@@ -34,16 +35,27 @@ run_internal_apis() {
     sh -c "PYTHONPATH=src poetry run pytest src/Tests -v"
 }
 
+run_auth_service() {
+  echo "[auth_service] build + pytest"
+  docker build -q -t labtech-auth-service-tests "$LAB/shared-resources/auth_service" >/dev/null || return 1
+  docker run --rm \
+    labtech-auth-service-tests \
+    sh -c "poetry run pytest tests -v"
+}
+
 case "${1:-all}" in
   python)   run_python_services || status=1 ;;
   internal) run_internal_apis   || status=1 ;;
+  auth)     run_auth_service    || status=1 ;;
   all)
     run_python_services || status=1
     echo
     run_internal_apis   || status=1
+    echo
+    run_auth_service    || status=1
     ;;
   *)
-    echo "uso: $0 [python|internal|all]" >&2
+    echo "uso: $0 [python|internal|auth|all]" >&2
     exit 2
     ;;
 esac
