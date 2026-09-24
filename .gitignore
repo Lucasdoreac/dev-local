@@ -1,0 +1,4 @@
+# Segredos locais (chaves geradas, API key, credenciais do MinIO): nunca versionar.
+# Os nomes das variáveis estão nos *.env.example.
+*.env
+.DS_Store

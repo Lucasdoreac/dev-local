@@ -1,0 +1,285 @@
+# LabTechUDF — ambiente local do produto Reservas (dev/staging).
+#
+#   cd ~/LABTECH/dev-local && docker compose up -d --build   # sobe tudo
+#   ./smoke.sh                                               # prova: reserva + aprovação
+#   docker compose down                                      # derruba (volumes ficam)
+#
+# Proposta de casa definitiva: repo crispy-octo-cluster (infra do lab).
+# Credenciais locais geradas em minio.env / internal.env (fora de qualquer repo).
+# Em FLASK_ENV=development nenhum email sai: o python-services devolve o HTML.
+#
+# ESCOPO (decidido 2026-09-23, após auditoria independente — ver
+# reports/gaps-2026-09-23.md e a pergunta em aberto no doc de status): só o
+# produto Reservas (python-services + shared-resources + frontend React), que
+# é o único bloco com chamadas de código reais entre os serviços. NÃO inclui:
+#   - java-services (Events API + Postgres + Keycloak): repo ARQUIVADO no
+#     GitHub, código parado desde jun/2024, nada no Reservas o chama. Se
+#     precisar dele de novo, `docker compose -f compose.yaml
+#     -f ../java-services/compose.yaml up -d` continua funcionando — o
+#     arquivo dele não foi tocado.
+#   - CoOps (dashboard): fork de ferramenta de métricas do GitHub sem nenhuma
+#     chamada de código para o produto Reservas. Roda pelo compose próprio em
+#     CoOps/dashboard, se precisar.
+name: labtech-dev
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes: [mongo_data:/data/db]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ping:1}).ok"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7.4.2
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redis_data:/data]
+
+  # Nome SEM "_": o MinIO recusa hostname com underscore (InvalidRequest).
+  minio:
+    image: quay.io/minio/minio  # Docker Hub recusou minio/minio (23/09/2026)
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    env_file: [minio.env]
+    ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
+    volumes: [minio_data:/data]
+
+  # Catálogo real (base `scripts` do backup do repo scripts) + 1 coordenador
+  # SINTÉTICO para o fluxo de aprovação achar destinatário (o catálogo não tem
+  # coordenador por curso — backlog DATA-03). A base transacional real do mesmo
+  # backup NÃO é carregada. Roda a cada `up` e recria só as coleções de catálogo.
+  seed:
+    image: mongo:7
+    depends_on: {mongo: {condition: service_healthy}}
+    volumes:
+      - ../scripts/new_collection/labtech.backup.tar.gz:/seed/labtech.backup.tar.gz:ro
+    command:
+      - bash
+      - -c
+      - |
+        set -euo pipefail
+        t=$$(mktemp -d)
+        tar -xzf /seed/labtech.backup.tar.gz -C "$$t" mongo-backups/scripts
+        mongorestore --host mongo --quiet --drop --db rooms-reservation-app "$$t/mongo-backups/scripts/scripts"
+        mongosh --host mongo --quiet rooms-reservation-app --eval '
+          db.teachers.updateOne({_id:"coord-sintetico-enf"},
+            {$$set:{PROFESSOR:"Coordenação Sintética ENF (teste local)", COD_CURS:[31], email:"coordenacao-sintetica@udf.edu.br"}}, {upsert:true});
+          db.courses.updateOne({_id:31}, {$$set:{COORDINATOR:"coord-sintetico-enf"}});
+          print("seed ok: cursos", db.courses.countDocuments(), "salas", db.rooms.countDocuments())'
+
+  # auth/internal/api: imagens construídas a partir do Dockerfile de cada
+  # serviço (Poetry + Gunicorn) em vez do antigo `python:3.12-slim` +
+  # `pip install` ad-hoc a cada `up` (sem lockfile, sem imagem de verdade).
+  # auth_service e internal_apis vieram do PR #25 (shared-resources,
+  # "24-dockerizar-as-apis-no-shared-resources", aberto, nunca mergeado);
+  # python-services não tinha Dockerfile em lugar nenhum, foi escrito agora
+  # seguindo o mesmo padrão. O volume por cima da imagem mantém live-edit:
+  # dependências já instaladas no build, código vem do host; um
+  # `docker compose restart <serviço>` pega mudança de código sem rebuild.
+  auth:
+    build: {context: ../shared-resources/auth_service}
+    restart: unless-stopped
+    depends_on: {seed: {condition: service_completed_successfully}}
+    volumes: [../shared-resources/auth_service:/auth_service]
+    environment:
+      MONGO_URI: mongodb://mongo:27017
+      MONGO_DATABASE: rooms-reservation-app
+      FLASK_ENV: development
+      REDIS_URL: redis://redis:6379/0
+      REACT_APP: http://127.0.0.1:3000
+    ports: ["127.0.0.1:5050:5050"]
+
+  internal:
+    build: {context: ../shared-resources/internal_apis}
+    restart: unless-stopped
+    depends_on: {seed: {condition: service_completed_successfully}}
+    volumes: [../shared-resources/internal_apis:/internal_apis]
+    env_file: [internal.env]
+    environment:
+      MONGO_URI: mongodb://mongo:27017
+      MONGO_DATABASE: rooms-reservation-app
+      REDIS_URL: redis://redis:6379/0
+    ports: ["127.0.0.1:5081:5081"]
+
+  api:
+    build: {context: ../python-services}
+    restart: unless-stopped
+    depends_on: [auth, internal, minio]
+    volumes: [../python-services:/python-services]
+    env_file: [minio.env]
+    environment:
+      MONGO_URI: mongodb://mongo:27017/
+      MONGO_DATABASE: rooms-reservation-app
+      FLASK_ENV: development
+      # Único interruptor de envio de e-mail (src/settings.py). Explícito aqui
+      # mesmo sendo o padrão: o dev-local nunca deve mandar e-mail de verdade.
+      EMAIL_DRY_RUN: "true"
+      # Sobrepõem o .env do repo (que aponta para os nomes de container antigos).
+      URL_AUTH: http://auth:5050
+      URL_graph: http://internal:5081/graphql/
+      URL_restapi: http://internal:5081/restapi
+      MINIO_URL: http://minio:9000
+    ports: ["5000:5000"]
+    # O client MinIO do python-services espera MINIO_ACCESS_KEY/SECRET_KEY;
+    # minio.env só define MINIO_ROOT_USER/PASSWORD (o que o container do
+    # MinIO usa). Remapeia antes de subir o gunicorn do Dockerfile.
+    command: >-
+      sh -c "export MINIO_ACCESS_KEY=$$MINIO_ROOT_USER MINIO_SECRET_KEY=$$MINIO_ROOT_PASSWORD &&
+      PYTHONPATH=src poetry run gunicorn -w 2 -b 0.0.0.0:5000 main:reservation_app"
+
+  # Frontends com node_modules próprio (volume): o do Mac tem binário darwin.
+  # `npm ci` não reescreve o lockfile do repo.
+  reservas:
+    image: node:22
+    restart: unless-stopped
+    depends_on: [api]
+    working_dir: /app
+    volumes: [../interfaces-usuario/reservas:/app, reservas_node_modules:/app/node_modules]
+    environment:
+      REACT_APP_API_BASE_URL: http://localhost:5000
+      BROWSER: none
+      HOST: 0.0.0.0
+      PORT: "3000"
+      WATCHPACK_POLLING: "true"
+    ports: ["127.0.0.1:3000:3000"]
+    command: sh -c "(npm ci --no-audit --no-fund --loglevel=error || npm ci --no-audit --no-fund --loglevel=error) && npm start"
+
+  # Alocação de Professores (repo teachers-allocation): app à parte do Reservas,
+  # com Postgres próprio, login próprio e ids próprios (ver
+  # reports/gap-reservas-2026-09-24.md). Portas: API 5002, frontend 3001 (o
+  # frontend usa REACT_APP_API_URL; antes a URL era fixa em localhost:5000, que
+  # é a API do Reservas). Dados 100% sintéticos (backend/seed_dev.py).
+  alocacao-db:
+    image: postgres:13
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: resource_allocation
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password  # só dev local (mesmo valor do compose do repo)
+    volumes: [alocacao_pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d resource_allocation"]
+      interval: 5s
+      retries: 20
+
+  alocacao-api:
+    build: {context: ../teachers-allocation/backend}
+    image: labtech-dev-alocacao-api
+    restart: unless-stopped
+    depends_on: {alocacao-db: {condition: service_healthy}}
+    volumes: [../teachers-allocation/backend:/app]
+    environment:
+      SQLALCHEMY_DATABASE_URI: postgresql://user:password@alocacao-db:5432/resource_allocation
+      SQLALCHEMY_TRACK_MODIFICATIONS: "False"
+      SECRET_KEY: dev-local-nao-usar-em-producao
+    ports: ["127.0.0.1:5002:5000"]
+
+  alocacao-seed:
+    build: {context: ../teachers-allocation/backend}
+    image: labtech-dev-alocacao-api
+    depends_on: {alocacao-api: {condition: service_started}, alocacao-db: {condition: service_healthy}}
+    working_dir: /app
+    volumes: [../teachers-allocation/backend:/app]
+    environment:
+      SQLALCHEMY_DATABASE_URI: postgresql://user:password@alocacao-db:5432/resource_allocation
+      SECRET_KEY: dev-local-nao-usar-em-producao
+    command: python seed_dev.py
+    restart: "no"
+
+  alocacao-web:
+    image: node:22
+    restart: unless-stopped
+    depends_on: [alocacao-api]
+    working_dir: /app
+    volumes: [../teachers-allocation/frontend:/app, alocacao_web_node_modules:/app/node_modules]
+    environment:
+      REACT_APP_API_URL: http://127.0.0.1:5002
+      # Em instalação limpa o lint do CRA falha ("jest/globals is unknown") e
+      # derruba a compilação; desligado só aqui, no dev local (lacuna do repo).
+      DISABLE_ESLINT_PLUGIN: "true"
+      BROWSER: none
+      HOST: 0.0.0.0
+      PORT: "3000"
+      WATCHPACK_POLLING: "true"
+    ports: ["127.0.0.1:3001:3000"]
+    command: sh -c "npm install --no-audit --no-fund --loglevel=error && npm start"
+
+  # Eventos (java-services + eventos-angular): repos ARQUIVADOS em 12/2024, só sobem
+  # com o perfil opcional:  docker compose --profile eventos up -d --build
+  # Usam os Dockerfiles que os próprios repos já trazem (nada é alterado neles).
+  # Sem Keycloak: o código nunca o usou (auth própria com JWT). Fora do `up` padrão
+  # para não pesar (Java + Maven ~1,2 GB de imagem, build de alguns minutos).
+  eventos-db:
+    image: postgres:14
+    profiles: [eventos]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: events_db
+      POSTGRES_USER: events
+      POSTGRES_PASSWORD: events  # só dev local (mesmo valor do compose do repo)
+    volumes: [eventos_pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U events -d events_db"]
+      interval: 5s
+      retries: 20
+
+  eventos-api:
+    build: {context: ../_outros/java-services}
+    profiles: [eventos]
+    restart: unless-stopped
+    depends_on: {eventos-db: {condition: service_healthy}}
+    environment:
+      POSTGRES_URL: jdbc:postgresql://eventos-db:5432/events_db
+      POSTGRES_USER: events
+      POSTGRES_PASSWORD: events
+    ports: ["127.0.0.1:8081:8081"]   # o Angular chama http://localhost:8081/api
+
+  # Imagem construída por ./build-eventos-web.sh (git archive): o repo tem
+  # shared/Utils e shared/utils, que o macOS funde e quebram o build em Linux.
+  eventos-web:
+    image: labtech-dev-eventos-web
+    profiles: [eventos]
+    restart: unless-stopped
+    depends_on: [eventos-api]
+    volumes: [./eventos-nginx.conf:/etc/nginx/conf.d/default.conf:ro]
+    ports: ["127.0.0.1:4200:80"]
+
+  # Hi.Events (fork da org, plataforma pronta de eventos e ingressos): perfil opcional de
+  # AVALIAÇÃO — docker compose --profile hievents up -d. Usa a imagem pronta do upstream
+  # (o fork tem 0 commits próprios); build local do all-in-one estoura a memória da VM.
+  hievents-db:
+    image: postgres:16
+    profiles: [hievents]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: hi-events
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret  # só dev local (mesmo valor do compose do upstream)
+    volumes: [hievents_pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hi-events"]
+      interval: 5s
+      retries: 20
+
+  hievents:
+    image: daveearley/hi.events-all-in-one
+    profiles: [hievents]
+    restart: unless-stopped
+    depends_on: {hievents-db: {condition: service_healthy}}
+    env_file: [hievents.env]
+    environment:
+      DATABASE_URL: postgresql://postgres:secret@hievents-db:5432/hi-events
+    ports: ["127.0.0.1:8123:80"]
+
+volumes:
+  mongo_data: {}
+  redis_data: {}
+  minio_data: {}
+  reservas_node_modules: {}
+  alocacao_pgdata: {}
+  alocacao_web_node_modules: {}
+  eventos_pgdata: {}
+  hievents_pgdata: {}
