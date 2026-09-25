@@ -9,6 +9,7 @@
 #   ./run-tests.sh python     # só python-services
 #   ./run-tests.sh internal   # só internal_apis
 #   ./run-tests.sh auth       # só auth_service
+#   ./run-tests.sh alocacao   # só o backend da Alocação (teachers-allocation)
 #   ./run-tests.sh e2e        # E2E do supreme-test-framework (Behave + Selenium) contra a pilha no ar
 set -uo pipefail
 cd "$(dirname "$0")"
@@ -44,6 +45,13 @@ run_auth_service() {
     sh -c "poetry run pytest tests -v"
 }
 
+run_alocacao() {
+  echo "[alocacao] build + pytest"
+  docker build -q -t labtech-alocacao-tests "$LAB/teachers-allocation/backend" >/dev/null || return 1
+  docker run --rm labtech-alocacao-tests \
+    sh -c "pip install -q --root-user-action=ignore -r requirements-dev.txt && pytest -v"
+}
+
 # E2E no navegador (Chromium no container) contra a pilha que já está no ar
 # (`docker compose up -d`): usa a rede do host da VM para abrir 127.0.0.1:3000
 # como o navegador do Mac abriria. Não entra no "all": precisa da pilha.
@@ -63,6 +71,7 @@ case "${1:-all}" in
   python)   run_python_services || status=1 ;;
   internal) run_internal_apis   || status=1 ;;
   auth)     run_auth_service    || status=1 ;;
+  alocacao) run_alocacao        || status=1 ;;
   e2e)      run_e2e             || status=1 ;;
   all)
     run_python_services || status=1
@@ -70,9 +79,11 @@ case "${1:-all}" in
     run_internal_apis   || status=1
     echo
     run_auth_service    || status=1
+    echo
+    run_alocacao        || status=1
     ;;
   *)
-    echo "uso: $0 [python|internal|auth|e2e|all]" >&2
+    echo "uso: $0 [python|internal|auth|alocacao|e2e|all]" >&2
     exit 2
     ;;
 esac
