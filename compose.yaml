@@ -131,6 +131,8 @@ services:
       URL_graph: http://internal:5081/graphql/
       URL_restapi: http://internal:5081/restapi
       MINIO_URL: http://minio:9000
+      # link "editar o evento" no e-mail de pedido de mudança (mesma origem do REACT_APP do auth)
+      FRONTEND_URL: http://127.0.0.1:3000
     ports: ["5000:5000"]
     # O client MinIO do python-services espera MINIO_ACCESS_KEY/SECRET_KEY;
     # minio.env só define MINIO_ROOT_USER/PASSWORD (o que o container do
