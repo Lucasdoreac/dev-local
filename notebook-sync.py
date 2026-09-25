@@ -40,7 +40,7 @@ TITLE_PREFIX = "LabTech código: "
 REPOS = {
     "python-services": "ci/actions-v7",
     "shared-resources": "chore/graphene-3",
-    "interfaces-usuario": "ci/actions-v7",
+    "interfaces-usuario": "chore/vite",
     "scripts": "main",
     "entidades": "main",
     "teachers-allocation": "chore/runtime-updates",
