@@ -136,7 +136,7 @@ services:
   # Frontends com node_modules próprio (volume): o do Mac tem binário darwin.
   # `npm ci` não reescreve o lockfile do repo.
   reservas:
-    image: node:22
+    image: node:24  # = interfaces-usuario/reservas/.nvmrc
     restart: unless-stopped
     depends_on: [api]
     working_dir: /app
