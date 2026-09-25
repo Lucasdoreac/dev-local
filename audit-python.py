@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Vulnerabilidades conhecidas (base pública OSV, osv.dev) nos poetry.lock do
-Reservas. Só manda nome e versão dos pacotes (informação pública).
+Reservas e no requirements.txt da Alocação. Só manda nome e versão dos pacotes (informação pública).
 
     ./audit-python.py            # os 3 serviços
     ./audit-python.py --detalhe  # lista os IDs por pacote
@@ -18,11 +18,15 @@ LOCKS = {
     "python-services": LAB / "python-services/poetry.lock",
     "internal_apis": LAB / "shared-resources/internal_apis/poetry.lock",
     "auth_service": LAB / "shared-resources/auth_service/poetry.lock",
+    "teachers-allocation": LAB / "teachers-allocation/backend/requirements.txt",
 }
 
 
 def packages(lock):
-    return re.findall(r'\[\[package\]\]\nname = "([^"]+)"\nversion = "([^"]+)"', lock.read_text())
+    text = lock.read_text()
+    if lock.name == "requirements.txt":  # versões fixas "nome==versão"
+        return re.findall(r"^([A-Za-z0-9_.\-]+)==([^\s;#]+)", text, re.MULTILINE)
+    return re.findall(r'\[\[package\]\]\nname = "([^"]+)"\nversion = "([^"]+)"', text)
 
 
 def osv(pkgs):

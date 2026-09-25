@@ -200,7 +200,7 @@ services:
     restart: "no"
 
   alocacao-web:
-    image: node:22
+    image: node:24  # era 22 (só manutenção desde 10/2025)
     restart: unless-stopped
     depends_on: [alocacao-api]
     working_dir: /app
@@ -215,7 +215,7 @@ services:
       PORT: "3000"
       WATCHPACK_POLLING: "true"
     ports: ["127.0.0.1:3001:3000"]
-    command: sh -c "npm install --no-audit --no-fund --loglevel=error && npm start"
+    command: sh -c "npm ci --no-audit --no-fund --loglevel=error && npm start"  # lock versionado desde 25/09
 
   # Eventos (java-services + eventos-angular): repos ARQUIVADOS em 12/2024, só sobem
   # com o perfil opcional:  docker compose --profile eventos up -d --build
