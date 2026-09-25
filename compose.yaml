@@ -156,13 +156,17 @@ services:
   # frontend usa REACT_APP_API_URL; antes a URL era fixa em localhost:5000, que
   # é a API do Reservas). Dados 100% sintéticos (backend/seed_dev.py).
   alocacao-db:
-    image: postgres:13
+    # 13 saiu de suporte em 11/2025. 17 (não 18: a imagem oficial 18 muda o
+    # caminho dos dados). Major novo não lê o diretório antigo: volume novo,
+    # repovoado pelo alocacao-seed (dados sintéticos). O volume antigo
+    # (alocacao_pgdata, Postgres 13) fica, sem uso, até o dono decidir.
+    image: postgres:17
     restart: unless-stopped
     environment:
       POSTGRES_DB: resource_allocation
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password  # só dev local (mesmo valor do compose do repo)
-    volumes: [alocacao_pgdata:/var/lib/postgresql/data]
+    volumes: [alocacao_pgdata17:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U user -d resource_allocation"]
       interval: 5s
@@ -282,7 +286,8 @@ volumes:
   redis_data: {}
   minio_data: {}
   reservas_node_modules: {}
-  alocacao_pgdata: {}
+  alocacao_pgdata: {}  # Postgres 13, sem uso desde 25/09/2026 (não apagar sem o dono)
+  alocacao_pgdata17: {}
   alocacao_web_node_modules: {}
   eventos_pgdata: {}
   hievents_pgdata: {}
