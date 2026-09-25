@@ -3,3 +3,5 @@
 *.env
 .DS_Store
 logs/
+# Dumps de bancos (dados): ficam só na máquina.
+backups/
