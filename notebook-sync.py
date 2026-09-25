@@ -43,7 +43,7 @@ REPOS = {
     "interfaces-usuario": "feat/tela-ofertas",
     "scripts": "main",
     "entidades": "main",
-    "teachers-allocation": "fix/rotas-alocacao-protegidas",
+    "teachers-allocation": "fix/get-professors-do-banco",
     "supreme-test-framework": "chore/e2e-container",
     "ajuda-documentacao": "main",
 }
