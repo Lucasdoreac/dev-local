@@ -43,7 +43,7 @@ REPOS = {
     "interfaces-usuario": "ci/actions-v7",
     "scripts": "main",
     "entidades": "main",
-    "teachers-allocation": "chore/postgres-18",
+    "teachers-allocation": "chore/runtime-updates",
     "supreme-test-framework": "master",
     "ajuda-documentacao": "main",
 }
