@@ -14,6 +14,7 @@ ME=$(gh api user -q .login)
 case "$ID" in
   SR-*) REPO=shared-resources ;; PS-*) REPO=python-services ;;
   IU-*) REPO=interfaces-usuario ;; TA-*) REPO=teachers-allocation ;;
+  ST-*) REPO=supreme-test-framework ;;
   *) echo "ID desconhecido: $ID"; exit 2 ;;
 esac
 LINE=$(grep -E "^\| [0-9]+ \| $ID " "$PRS/FILA.md") || { echo "$ID não está na FILA.md (rode reports/prs/gerar.py)"; exit 2; }
@@ -22,7 +23,7 @@ DEPS=$(echo "$LINE" | awk -F'|' '{print $8}' | xargs)
 BODY="$PRS/$ID.md"
 
 VERIF=$(grep "^$ID " "$PRS/verificacao.txt" 2>/dev/null || true)
-case "$ID" in TA-*) ;; *)
+case "$ID" in TA-*|ST-*) ;; *)  # sem suíte em container limpo (ST: precisa da pilha no ar)
   [ -n "$VERIF" ] || { echo "Suíte da ponta ainda não medida: rode reports/prs/verificar.sh $ID"; exit 3; }
   echo "$VERIF" | grep -q FAIL && { echo "Suíte FALHANDO na ponta: $VERIF"; exit 3; } ;;
 esac
