@@ -10,6 +10,13 @@ mkdir -p logs
 exec >> logs/notebook-sync.log 2>&1
 echo "=== $(date '+%F %T') push de $repo: $local_branch -> origin/$remote_branch ${sha:0:7}"
 
+case "$remote_branch" in pr/*)
+  # Fila de PRs (fork): cada pr/* é só um pedaço do trabalho. O caderno fica com as
+  # branches de trabalho completas (REPOS do notebook-sync.py).
+  echo "branch da fila de PRs: caderno não muda (mantém as branches de trabalho)"
+  exit 0 ;;
+esac
+
 remote=""
 for _ in $(seq 1 "${WAIT_TRIES:-36}"); do   # até 3 min
   remote=$(git -C "../$repo" ls-remote origin "refs/heads/$remote_branch" | cut -f1)
