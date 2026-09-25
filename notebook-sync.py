@@ -43,7 +43,7 @@ REPOS = {
     "interfaces-usuario": "chore/frontend-patches",
     "scripts": "main",
     "entidades": "main",
-    "teachers-allocation": "chore/docker-local",
+    "teachers-allocation": "chore/postgres-17",
     "supreme-test-framework": "master",
     "ajuda-documentacao": "main",
 }
