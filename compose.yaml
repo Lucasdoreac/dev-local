@@ -34,14 +34,17 @@ services:
       retries: 20
 
   redis:
-    image: redis:7.4.2
+    image: redis:8.2  # linha de suporte longo do Redis 8 (EOL 2030)
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     volumes: [redis_data:/data]
 
   # Nome SEM "_": o MinIO recusa hostname com underscore (InvalidRequest).
   minio:
-    image: quay.io/minio/minio  # Docker Hub recusou minio/minio (23/09/2026)
+    # Docker Hub recusou minio/minio (23/09/2026). Tag fixa = a última imagem publicada:
+    # o repositório minio/minio foi ARQUIVADO (última release 15/10/2025, sem imagem nova).
+    # Trocar por outro S3 compatível é decisão à parte (plano de atualizações, P3b).
+    image: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e  # RELEASE.2025-09-07T16-13-09Z; a tag já responde 401 no quay.io
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     env_file: [minio.env]
@@ -272,7 +275,7 @@ services:
       retries: 20
 
   hievents:
-    image: daveearley/hi.events-all-in-one
+    image: daveearley/hi.events-all-in-one:v2.0.0-rc.1  # mesmo digest avaliado em 24/09 (sha256:eda0a3f7)
     profiles: [hievents]
     restart: unless-stopped
     depends_on: {hievents-db: {condition: service_healthy}}

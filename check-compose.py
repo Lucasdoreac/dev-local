@@ -2,7 +2,8 @@
 """Regras do compose do dev-local que já custaram caro. Lê a configuração
 resolvida (todos os perfis) e sai com 1 se alguma regra quebrar.
 
-  * Postgres na versão maior atual (18+) e Mongo na linha de suporte longo 8.0+.
+  * Postgres na versão maior atual (18+), Mongo 8.0+ e Redis 8+.
+  * Toda imagem com tag explícita (sem tag = "latest" do dia do pull: não reproduzível).
   * Postgres 18+ com o volume em /var/lib/postgresql: a imagem 18 grava em
     /var/lib/postgresql/18/docker; montar em .../data (padrão até o 17) deixa
     os dados fora do volume nomeado, e eles somem ao recriar o container.
@@ -17,6 +18,7 @@ import sys
 
 MIN_POSTGRES = 18
 MIN_MONGO = 8
+MIN_REDIS = 8
 DEV = pathlib.Path(__file__).resolve().parent
 
 
@@ -30,6 +32,12 @@ def problems(svcs):
     found = []
     for name, svc in sorted(svcs.items()):
         image = svc.get("image", "")
+        built_here = image.startswith("labtech-dev-")  # construída pelo próprio compose
+        if image and not built_here and "@sha256:" not in image and (":" not in image.rsplit("/", 1)[-1] or image.endswith(":latest")):
+            found.append(f"{name}: imagem sem tag fixa ({image})")
+        rm = re.fullmatch(r"(?:docker\.io/library/)?redis:(\d+)(?:[.\-].*)?", image)
+        if rm and int(rm.group(1)) < MIN_REDIS:
+            found.append(f"{name}: redis:{rm.group(1)} (mínimo {MIN_REDIS})")
         mm = re.fullmatch(r"(?:docker\.io/library/)?mongo:(\d+)(?:[.\-].*)?", image)
         if mm and int(mm.group(1)) < MIN_MONGO:
             found.append(f"{name}: mongo:{mm.group(1)} (mínimo {MIN_MONGO})")
