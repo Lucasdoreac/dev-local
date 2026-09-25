@@ -83,6 +83,16 @@ def prs_no_github(repos):
     return state
 
 
+def pendencias_resolvidas():
+    """Números das pendências cujo cartão [D-n] foi fechado no quadro público."""
+    out = subprocess.run(["gh", "issue", "list", "--repo", "Lucasdoreac/estagio-publico", "--label", "pendencia",
+                          "--state", "closed", "--limit", "100", "--json", "title"],
+                         capture_output=True, text=True, timeout=120)
+    if out.returncode != 0:
+        raise RuntimeError("gh issue list (pendências) falhou")
+    return [m.group(1) for i in json.loads(out.stdout) if (m := re.match(r"\[D-(\d+)\]", i["title"]))]
+
+
 ESTADO = {"open": "aberto, em revisão", "merged": "mergeado", "closed": "fechado sem merge"}
 
 
@@ -122,6 +132,9 @@ def build():
     lines += ["", "## Código sincronizado (branch de trabalho de cada repo)"]
     lines += [f"- {repo}: {ref}" for repo, ref in sync.REPOS.items()]
     pend = re.sub(r"<!--.*?-->\n?", "", PENDENCIAS.read_text(), flags=re.S).strip()
+    # Pendência resolvida no quadro público (cartão [D-n] fechado) sai daqui também.
+    for n in pendencias_resolvidas():
+        pend = re.sub(rf"^{n}\. .*?(?=^\d+\. |^- |\Z)", "", pend, flags=re.S | re.M)
     lines += ["", "## O que falta (depende de pessoas ou decisões)", pend, ""]
     return "\n".join(lines)
 

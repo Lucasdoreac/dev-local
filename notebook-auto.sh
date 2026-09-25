@@ -4,8 +4,9 @@
 #   1. reports/prs/gerar.py          fila, textos dos PRs, fila.json e pendencias.json
 #   2. publica estagio-publico/data   commit + push só de data/ (dados gerados, sem nomes);
 #                                     o push dispara a Action que atualiza o quadro
-#   3. notebook-sync.py --prune      código das branches de trabalho (só sobe o que mudou)
-#   4. notebook-estado.py --prune    fonte "estado e fila" gerada dos dados
+#   3. abrir-proximos.py             abre o próximo PR de cada repo quando o anterior recebe merge
+#   4. notebook-sync.py --prune      código das branches de trabalho (só sobe o que mudou)
+#   5. notebook-estado.py --prune    fonte "estado e fila" gerada dos dados
 # Falha = notificação do macOS + dev-local/logs/notebook-auto.log. Nada aqui
 # toca no caderno do Estágio (público). Push automático de data/ autorizado pelo
 # dono em 25/09/2026.
@@ -54,11 +55,20 @@ if [ -z "$falhou" ] && [ -n "$(git -C "$SITE" status --porcelain -- data)" ]; th
     falhou="site"
   fi
 fi
+# Próximo PR de cada repositório abre sozinho quando o anterior recebe merge.
+abertos=$(./abrir-proximos.py 2>&1); rc=$?
+echo "$abertos"
+novos=$(echo "$abertos" | sed -n 's/^\([a-z-]*\): abre \([A-Z]*-[0-9]*\).*/\2/p' | xargs)
+if [ -n "$novos" ]; then
+  gh workflow run sync-quadro.yml --repo Lucasdoreac/estagio-publico >/dev/null 2>&1
+  osascript -e "display notification \"PR aberto automaticamente: $novos\" with title \"LabTech fila\"" 2>/dev/null
+fi
+[ $rc -eq 0 ] || falhou="${falhou:+$falhou e }fila de PRs ($(echo "$abertos" | grep -E 'ATENÇÃO|falhou' | head -1))"
 ./notebook-sync.py --prune || falhou="${falhou:+$falhou e }código"
 ./notebook-estado.py --prune || falhou="${falhou:+$falhou e }estado"
 if [ -n "$falhou" ]; then
   echo "FALHOU: $falhou"
-  osascript -e "display notification \"Atualização do caderno falhou ($falhou). Veja dev-local/logs/notebook-auto.log (sessão expirada? rode nlm login).\" with title \"LabTech caderno\"" 2>/dev/null
+  osascript -e "display notification \"Precisa de atenção: $falhou. Detalhes em dev-local/logs/notebook-auto.log.\" with title \"LabTech automação\"" 2>/dev/null
   exit 1
 fi
 echo "ok"

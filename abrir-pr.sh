@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Abre UM PR da fila (reports/prs/FILA.md) a partir do fork do dono.
 # Quem roda é o dono: faz push para o fork e abre PR na org (visível para quem revisa).
-#   ./abrir-pr.sh PS-1
+#   ./abrir-pr.sh PS-1           # pergunta antes
+#   ./abrir-pr.sh PS-1 --sim     # sem pergunta (usado por abrir-proximos.py)
 # Passos: confere a suíte medida na ponta (reports/prs/verificacao.txt), cria o fork
 # se faltar, empurra pr/<ID> para o fork e abre o PR com o texto de reports/prs/<ID>.md.
 set -euo pipefail
-ID=${1:?uso: $0 <ID da fila, ex.: PS-1>}
+ID=${1:?uso: $0 <ID da fila, ex.: PS-1> [--sim]}
+SIM=${2:-}
 LAB=$(cd "$(dirname "$0")/.." && pwd)
 PRS="$LAB/reports/prs"
 ORG=LabTechUDF
@@ -34,7 +36,11 @@ echo "PR:       $ID  $TITLE"
 echo "Repo:     $ORG/$REPO ($BASE) <- $ME/$REPO:pr/$ID"
 echo "Depende:  $DEPS   (abra na ordem; o diff inclui os PRs anteriores ainda não aceitos)"
 echo "Suíte:    ${VERIF:-sem suíte}"
-read -r -p "Fazer push para o fork e abrir o PR? [s/N] " ok
+if [ "$SIM" = "--sim" ]; then
+  ok=s
+else
+  read -r -p "Fazer push para o fork e abrir o PR? [s/N] " ok
+fi
 [ "$ok" = s ] || { echo "nada feito"; exit 0; }
 
 gh repo view "$ME/$REPO" >/dev/null 2>&1 || gh repo fork "$ORG/$REPO" --clone=false
