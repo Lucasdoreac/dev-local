@@ -24,7 +24,8 @@ name: labtech-dev
 
 services:
   mongo:
-    image: mongo:7
+    # 8.0: linha de suporte longo (a do Atlas). Subiu do 7 no mesmo volume (FCV 7.0 → 8.0).
+    image: mongo:8.0
     restart: unless-stopped
     volumes: [mongo_data:/data/db]
     healthcheck:
@@ -52,7 +53,7 @@ services:
   # coordenador por curso — backlog DATA-03). A base transacional real do mesmo
   # backup NÃO é carregada. Roda a cada `up` e recria só as coleções de catálogo.
   seed:
-    image: mongo:7
+    image: mongo:8.0  # mesmas ferramentas (mongorestore) do serviço mongo
     depends_on: {mongo: {condition: service_healthy}}
     volumes:
       - ../scripts/new_collection/labtech.backup.tar.gz:/seed/labtech.backup.tar.gz:ro

@@ -2,7 +2,7 @@
 """Regras do compose do dev-local que já custaram caro. Lê a configuração
 resolvida (todos os perfis) e sai com 1 se alguma regra quebrar.
 
-  * Postgres na versão maior atual (18+).
+  * Postgres na versão maior atual (18+) e Mongo na linha de suporte longo 8.0+.
   * Postgres 18+ com o volume em /var/lib/postgresql: a imagem 18 grava em
     /var/lib/postgresql/18/docker; montar em .../data (padrão até o 17) deixa
     os dados fora do volume nomeado, e eles somem ao recriar o container.
@@ -16,6 +16,7 @@ import subprocess
 import sys
 
 MIN_POSTGRES = 18
+MIN_MONGO = 8
 DEV = pathlib.Path(__file__).resolve().parent
 
 
@@ -29,6 +30,9 @@ def problems(svcs):
     found = []
     for name, svc in sorted(svcs.items()):
         image = svc.get("image", "")
+        mm = re.fullmatch(r"(?:docker\.io/library/)?mongo:(\d+)(?:[.\-].*)?", image)
+        if mm and int(mm.group(1)) < MIN_MONGO:
+            found.append(f"{name}: mongo:{mm.group(1)} (mínimo {MIN_MONGO})")
         m = re.fullmatch(r"(?:docker\.io/library/)?postgres:(\d+)(?:[.\-].*)?", image)
         if not m:
             continue
