@@ -86,7 +86,8 @@ services:
   auth:
     build: {context: ../shared-resources/auth_service}
     restart: unless-stopped
-    depends_on: {seed: {condition: service_completed_successfully}}
+    # redis: cache do login (auth) e do catálogo (internal); sem ele as rotas dão 500.
+    depends_on: {seed: {condition: service_completed_successfully}, redis: {condition: service_started}}
     volumes: [../shared-resources/auth_service:/auth_service]
     environment:
       MONGO_URI: mongodb://mongo:27017
@@ -101,7 +102,8 @@ services:
   internal:
     build: {context: ../shared-resources/internal_apis}
     restart: unless-stopped
-    depends_on: {seed: {condition: service_completed_successfully}}
+    # redis: cache do login (auth) e do catálogo (internal); sem ele as rotas dão 500.
+    depends_on: {seed: {condition: service_completed_successfully}, redis: {condition: service_started}}
     volumes: [../shared-resources/internal_apis:/internal_apis]
     env_file: [internal.env]
     environment:
