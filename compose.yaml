@@ -219,72 +219,8 @@ services:
     ports: ["127.0.0.1:3001:3000"]
     command: sh -c "npm ci --no-audit --no-fund --loglevel=error && npm start"  # lock versionado desde 25/09
 
-  # Eventos (java-services + eventos-angular): repos ARQUIVADOS em 12/2024, só sobem
-  # com o perfil opcional:  docker compose --profile eventos up -d --build
-  # Usam os Dockerfiles que os próprios repos já trazem (nada é alterado neles).
-  # Sem Keycloak: o código nunca o usou (auth própria com JWT). Fora do `up` padrão
-  # para não pesar (Java + Maven ~1,2 GB de imagem, build de alguns minutos).
-  eventos-db:
-    image: postgres:18  # era 14; volume em /var/lib/postgresql (ver alocacao-db)
-    profiles: [eventos]
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: events_db
-      POSTGRES_USER: events
-      POSTGRES_PASSWORD: events  # só dev local (mesmo valor do compose do repo)
-    volumes: [eventos_pg18:/var/lib/postgresql]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U events -d events_db"]
-      interval: 5s
-      retries: 20
-
-  eventos-api:
-    build: {context: ../_outros/java-services}
-    profiles: [eventos]
-    restart: unless-stopped
-    depends_on: {eventos-db: {condition: service_healthy}}
-    environment:
-      POSTGRES_URL: jdbc:postgresql://eventos-db:5432/events_db
-      POSTGRES_USER: events
-      POSTGRES_PASSWORD: events
-    ports: ["127.0.0.1:8081:8081"]   # o Angular chama http://localhost:8081/api
-
-  # Imagem construída por ./build-eventos-web.sh (git archive): o repo tem
-  # shared/Utils e shared/utils, que o macOS funde e quebram o build em Linux.
-  eventos-web:
-    image: labtech-dev-eventos-web
-    profiles: [eventos]
-    restart: unless-stopped
-    depends_on: [eventos-api]
-    volumes: [./eventos-nginx.conf:/etc/nginx/conf.d/default.conf:ro]
-    ports: ["127.0.0.1:4200:80"]
-
-  # Hi.Events (fork da org, plataforma pronta de eventos e ingressos): perfil opcional de
-  # AVALIAÇÃO — docker compose --profile hievents up -d. Usa a imagem pronta do upstream
-  # (o fork tem 0 commits próprios); build local do all-in-one estoura a memória da VM.
-  hievents-db:
-    image: postgres:18  # era 16; volume em /var/lib/postgresql (ver alocacao-db)
-    profiles: [hievents]
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: hi-events
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: secret  # só dev local (mesmo valor do compose do upstream)
-    volumes: [hievents_pg18:/var/lib/postgresql]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d hi-events"]
-      interval: 5s
-      retries: 20
-
-  hievents:
-    image: daveearley/hi.events-all-in-one:v2.0.0-rc.1  # mesmo digest avaliado em 24/09 (sha256:eda0a3f7)
-    profiles: [hievents]
-    restart: unless-stopped
-    depends_on: {hievents-db: {condition: service_healthy}}
-    env_file: [hievents.env]
-    environment:
-      DATABASE_URL: postgresql://postgres:secret@hievents-db:5432/hi-events
-    ports: ["127.0.0.1:8123:80"]
+  # Eventos (Java + Angular, arquivados) e Hi.Events (fork sem uso) saíram em 25/09/2026:
+  # produto único = Reservas (+ Alocação). Voltam pelo histórico do git se precisar avaliar.
 
 volumes:
   mongo_data: {}
@@ -295,7 +231,5 @@ volumes:
   alocacao_pgdata17: {}  # Postgres 17, sem uso desde 25/09/2026 (não apagar sem o dono)
   alocacao_pg18: {}
   alocacao_web_node_modules: {}
-  eventos_pgdata: {}  # Postgres 14, sem uso desde 25/09/2026
-  eventos_pg18: {}
-  hievents_pgdata: {}  # Postgres 16, sem uso desde 25/09/2026
-  hievents_pg18: {}
+# Volumes labtech-dev_eventos_* e labtech-dev_hievents_* ficaram sem serviço em 25/09/2026
+# (dados sintéticos): continuam no Docker até o dono apagar.
