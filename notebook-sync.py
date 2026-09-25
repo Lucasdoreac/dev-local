@@ -44,7 +44,7 @@ REPOS = {
     "scripts": "main",
     "entidades": "main",
     "teachers-allocation": "chore/runtime-updates",
-    "supreme-test-framework": "master",
+    "supreme-test-framework": "chore/e2e-container",
     "ajuda-documentacao": "main",
 }
 # Dados que não sobem (nomes de professores, cópia do banco da UDF).
