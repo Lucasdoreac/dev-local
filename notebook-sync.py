@@ -39,7 +39,7 @@ TITLE_PREFIX = "LabTech código: "
 # (só o nginx do gateway descartado) e CLI (lançador genérico; o dev-local faz isso).
 REPOS = {
     "python-services": "ci/actions-v7",
-    "shared-resources": "ci/actions-v7",
+    "shared-resources": "chore/graphene-3",
     "interfaces-usuario": "ci/actions-v7",
     "scripts": "main",
     "entidades": "main",
