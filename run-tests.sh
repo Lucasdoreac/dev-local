@@ -9,6 +9,7 @@
 #   ./run-tests.sh python     # só python-services
 #   ./run-tests.sh internal   # só internal_apis
 #   ./run-tests.sh auth       # só auth_service
+#   ./run-tests.sh e2e        # E2E do supreme-test-framework (Behave + Selenium) contra a pilha no ar
 set -uo pipefail
 cd "$(dirname "$0")"
 LAB=$(cd .. && pwd)
@@ -43,10 +44,26 @@ run_auth_service() {
     sh -c "poetry run pytest tests -v"
 }
 
+# E2E no navegador (Chromium no container) contra a pilha que já está no ar
+# (`docker compose up -d`): usa a rede do host da VM para abrir 127.0.0.1:3000
+# como o navegador do Mac abriria. Não entra no "all": precisa da pilha.
+run_e2e() {
+  echo "[e2e] build + behave"
+  curl -sf -o /dev/null http://127.0.0.1:3000/ \
+    || { echo "frontend fora do ar em 127.0.0.1:3000: rode docker compose up -d"; return 1; }
+  docker build -q -t labtech-e2e-tests "$LAB/supreme-test-framework" >/dev/null || return 1
+  docker run --rm --network host \
+    -e WINDOW_WIDTH=1280 -e WINDOW_HEIGHT=900 \
+    labtech-e2e-tests \
+    behave --no-color --logging-level=WARNING --no-junit \
+      -D BASE_URL=http://127.0.0.1:3000 -D API_URL=http://127.0.0.1:5050
+}
+
 case "${1:-all}" in
   python)   run_python_services || status=1 ;;
   internal) run_internal_apis   || status=1 ;;
   auth)     run_auth_service    || status=1 ;;
+  e2e)      run_e2e             || status=1 ;;
   all)
     run_python_services || status=1
     echo
@@ -55,7 +72,7 @@ case "${1:-all}" in
     run_auth_service    || status=1
     ;;
   *)
-    echo "uso: $0 [python|internal|auth|all]" >&2
+    echo "uso: $0 [python|internal|auth|e2e|all]" >&2
     exit 2
     ;;
 esac
