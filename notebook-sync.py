@@ -16,6 +16,7 @@ Uso:
     ./notebook-sync.py                    # sobe as fontes novas
     ./notebook-sync.py --prune            # sobe e apaga as versões antigas deste script
     ./notebook-sync.py --ref python-services=main   # outra branch/commit
+    ./notebook-sync.py --only python-services --prune   # um repo só (usado pelo hook de push)
 
 Nunca manda para o caderno do Estágio (público: o código traz e-mails de
 desenvolvedores).
@@ -67,7 +68,10 @@ def skip(path):
             or path.lower().endswith(SKIP_EXT) or any(d in path for d in SKIP_DIRS))
 
 
-def bundle(repo, ref):
+def bundle(repo, ref, commit=None):
+    """`ref` dá o nome (título); `commit`, se vier, é o que é lido de fato
+    (o hook de push manda o sha exato que chegou ao GitHub)."""
+    ref_name, ref = ref, commit or ref
     sha = git(repo, "rev-parse", "--short", ref).strip()
     parts, excluded, secrets = [], 0, []
     current = []
@@ -96,6 +100,14 @@ def bundle(repo, ref):
     return sha, parts, excluded, secrets
 
 
+def old_versions(existing, synced_repos, added_titles):
+    """Fontes antigas deste script a apagar: só dos repos sincronizados agora.
+    (Sem esse filtro, sincronizar um repo apagaria as fontes dos outros.)"""
+    prefixes = tuple(f"{TITLE_PREFIX}{repo} @ " for repo in synced_repos)
+    return [s for s in existing
+            if str(s.get("title", "")).startswith(prefixes) and s.get("title") not in added_titles]
+
+
 def nlm(*args):
     out = subprocess.run(["nlm", *args, "--json"], capture_output=True, text=True, timeout=900)
     if out.returncode != 0:
@@ -108,11 +120,21 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--prune", action="store_true")
     ap.add_argument("--ref", action="append", default=[], help="repo=branch")
+    ap.add_argument("--only", action="append", default=[], help="sincroniza só este repo")
+    ap.add_argument("--commit", action="append", default=[], help="repo=sha: lê este commit (título mantém a branch)")
     args = ap.parse_args()
     repos = dict(REPOS)
     for item in args.ref:
         repo, _, ref = item.partition("=")
         repos[repo] = ref
+    if args.only:
+        unknown = set(args.only) - set(repos)
+        if unknown:
+            print("repo desconhecido:", ", ".join(sorted(unknown)))
+            return 2
+        repos = {r: repos[r] for r in args.only}
+
+    commits = dict(item.partition("=")[::2] for item in args.commit)
 
     # 1. Caderno primeiro: sessão expirada = aborta sem tocar em nada.
     if not args.dry_run:
@@ -126,7 +148,7 @@ def main():
     # 2. Empacota e varre segredos.
     sources, all_secrets = [], []
     for repo, ref in repos.items():
-        sha, parts, excluded, secrets = bundle(repo, ref)
+        sha, parts, excluded, secrets = bundle(repo, ref, commits.get(repo))
         all_secrets += secrets
         for i, body in enumerate(parts, 1):
             suffix = f" (parte {i}/{len(parts)})" if len(parts) > 1 else ""
@@ -152,9 +174,7 @@ def main():
         added.append(title)
         print("  subiu:", title)
     if args.prune:
-        old = [s for s in existing if str(s.get("title", "")).startswith(TITLE_PREFIX)
-               and s.get("title") not in added]
-        for s in old:
+        for s in old_versions(existing, repos, added):
             nlm("source", "delete", s["id"], "--confirm")
             print("  apagou versão antiga:", s["title"])
     print(f"=== NOTEBOOK SYNC: {len(added)} fonte(s) no caderno Darlas 2022 ===")

@@ -2,3 +2,4 @@
 # Os nomes das variáveis estão nos *.env.example.
 *.env
 .DS_Store
+logs/
