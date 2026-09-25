@@ -40,7 +40,7 @@ TITLE_PREFIX = "LabTech código: "
 REPOS = {
     "python-services": "docs/swagger-rotas-novas",
     "shared-resources": "fix/busca-ofertas-todas",
-    "interfaces-usuario": "feat/tela-ofertas",
+    "interfaces-usuario": "chore/deps-descontinuadas",
     "scripts": "main",
     "entidades": "main",
     "teachers-allocation": "fix/get-professors-do-banco",
