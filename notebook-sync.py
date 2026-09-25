@@ -39,11 +39,11 @@ TITLE_PREFIX = "LabTech código: "
 # (só o nginx do gateway descartado) e CLI (lançador genérico; o dev-local faz isso).
 REPOS = {
     "python-services": "feat/tela-ofertas-dias",
-    "shared-resources": "feat/offer-weekdays-edit",
+    "shared-resources": "fix/busca-ofertas-todas",
     "interfaces-usuario": "feat/tela-ofertas",
     "scripts": "main",
     "entidades": "main",
-    "teachers-allocation": "fix/signin-so-coordenador",
+    "teachers-allocation": "fix/rotas-alocacao-protegidas",
     "supreme-test-framework": "chore/e2e-container",
     "ajuda-documentacao": "main",
 }
