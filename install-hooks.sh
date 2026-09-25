@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Instala o hook pre-push nos 3 repos do Reservas: a cada push para o GitHub, o
+# Instala o hook pre-push em todos os repos de REPOS do notebook-sync.py: a cada push para o GitHub, o
 # código daquele repo é sincronizado com o caderno Darlas 2022 (em segundo
 # plano, depois que o push chega). Hooks não são versionados pelo git, por
 # isso ficam aqui. Não sobrescreve hook que não seja deste script.
 #   ./install-hooks.sh
 set -eu
 DEV=$(cd "$(dirname "$0")" && pwd)
-for repo in python-services shared-resources interfaces-usuario; do
+for repo in $(python3 -c 'import importlib.util as u;s=u.spec_from_file_location("n","'"$DEV"'/notebook-sync.py");m=u.module_from_spec(s);s.loader.exec_module(m);print(" ".join(m.REPOS))'); do
   hook="$DEV/../$repo/.git/hooks/pre-push"
   if [ -e "$hook" ] && ! grep -q "notebook-sync-after-push" "$hook"; then
     echo "$repo: já existe um pre-push que não é deste script; não mexi"; continue

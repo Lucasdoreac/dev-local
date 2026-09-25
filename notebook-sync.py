@@ -32,11 +32,24 @@ LAB = pathlib.Path(__file__).resolve().parents[1]
 NOTEBOOK_ID = "33c068ee-16a4-4fd2-852b-f111adaa5087"  # Darlas 2022
 TITLE_PREFIX = "LabTech código: "
 
-# repo -> branch (ponta da pilha de branches locais em 25/09/2026)
+# repo -> branch (ponta da pilha de branches locais em 25/09/2026). Dos 16 repos da
+# org, estes são os que interessam ao Reservas; ficam de fora java-services e
+# eventos-angular (arquivados), Hi.Events (fork sem commits), CoOps (métricas),
+# RAG-TCC (outro projeto), demo-repository (modelo vazio), crispy-octo-cluster
+# (só o nginx do gateway descartado) e CLI (lançador genérico; o dev-local faz isso).
 REPOS = {
     "python-services": "chore/python-patches",
     "shared-resources": "chore/python-patches",
     "interfaces-usuario": "chore/frontend-patches",
+    "scripts": "main",
+    "entidades": "main",
+    "teachers-allocation": "chore/docker-local",
+    "supreme-test-framework": "master",
+    "ajuda-documentacao": "main",
+}
+# Dados que não sobem (nomes de professores, cópia do banco da UDF).
+REPO_EXCLUDES = {
+    "scripts": ("collection/", "new_collection/"),
 }
 # fonte de texto grande demais vira várias partes
 MAX_CHARS = 350_000
@@ -57,14 +70,27 @@ SECRET_PATTERNS = [
 ]
 
 
+# Valor de exemplo (".env.example", README): contém uma destas palavras.
+PLACEHOLDER_WORDS = ("your", "here", "change", "example", "placeholder", "dummy", "xxx",
+                     "sua", "chave", "troque", "replace", "fake", "falsa")
+
+
+def looks_like_secret(line):
+    for pattern in SECRET_PATTERNS:
+        m = pattern.search(line)
+        if m and not any(w in m.group(0).lower() for w in PLACEHOLDER_WORDS):
+            return True
+    return False
+
+
 def git(repo, *args):
     return subprocess.run(["git", "-C", str(LAB / repo), *args], check=True,
                           capture_output=True, text=True).stdout
 
 
-def skip(path):
+def skip(path, repo=None):
     name = path.rsplit("/", 1)[-1]
-    return (name in SKIP_NAMES or name.startswith(".env.") and name != ".env.example"
+    return (path.startswith(REPO_EXCLUDES.get(repo, ())) or name in SKIP_NAMES or name.startswith(".env.") and name != ".env.example"
             or path.lower().endswith(SKIP_EXT) or any(d in path for d in SKIP_DIRS))
 
 
@@ -77,7 +103,7 @@ def bundle(repo, ref, commit=None):
     current = []
     size = 0
     for path in git(repo, "ls-tree", "-r", "--name-only", ref).splitlines():
-        if skip(path):
+        if skip(path, repo):
             excluded += 1
             continue
         raw = subprocess.run(["git", "-C", str(LAB / repo), "show", f"{ref}:{path}"],
@@ -87,7 +113,7 @@ def bundle(repo, ref, commit=None):
             continue
         text = raw.decode("utf-8", errors="replace")
         for lineno, line in enumerate(text.splitlines(), 1):
-            if any(p.search(line) for p in SECRET_PATTERNS):
+            if looks_like_secret(line):
                 secrets.append(f"{repo}:{path}:{lineno}")  # nunca o valor
         block = f"\n\n===== {path} =====\n{text}"
         if size + len(block) > MAX_CHARS and current:
@@ -100,12 +126,13 @@ def bundle(repo, ref, commit=None):
     return sha, parts, excluded, secrets
 
 
-def old_versions(existing, synced_repos, added_titles):
-    """Fontes antigas deste script a apagar: só dos repos sincronizados agora.
-    (Sem esse filtro, sincronizar um repo apagaria as fontes dos outros.)"""
+def old_versions(existing, synced_repos, keep_ids):
+    """Fontes antigas deste script a apagar: só dos repos sincronizados agora, e
+    nunca as que ficam (recém-subidas ou já atualizadas). Compara por ID: duas
+    fontes podem ter o mesmo título."""
     prefixes = tuple(f"{TITLE_PREFIX}{repo} @ " for repo in synced_repos)
     return [s for s in existing
-            if str(s.get("title", "")).startswith(prefixes) and s.get("title") not in added_titles]
+            if str(s.get("title", "")).startswith(prefixes) and s.get("id") not in keep_ids]
 
 
 def nlm(*args):
@@ -167,17 +194,29 @@ def main():
             print("  subiria:", title)
         return 0
 
-    # 3. Sobe tudo; só depois poda.
-    added = []
+    # 3. Sobe o que mudou (versão igual já no caderno = pula); só depois poda.
+    by_title = {}
+    for s in existing:
+        by_title.setdefault(s.get("title"), s.get("id"))
+    keep, uploaded = set(), 0
     for title, body in sources:
+        if title in by_title:
+            keep.add(by_title[title])
+            print("  já atualizado:", title)
+            continue
         res = nlm("source", "add", NOTEBOOK_ID, "--text", body, "--title", title, "--wait")
-        added.append(title)
+        new_id = res.get("id") or res.get("source_id") or (res.get("source") or {}).get("id")
+        if not new_id:
+            print("ABORTADO antes da poda: não recebi o ID da fonte nova", title)
+            return 4
+        keep.add(new_id)
+        uploaded += 1
         print("  subiu:", title)
     if args.prune:
-        for s in old_versions(existing, repos, added):
+        for s in old_versions(existing, repos, keep):
             nlm("source", "delete", s["id"], "--confirm")
             print("  apagou versão antiga:", s["title"])
-    print(f"=== NOTEBOOK SYNC: {len(added)} fonte(s) no caderno Darlas 2022 ===")
+    print(f"=== NOTEBOOK SYNC: {uploaded} nova(s), {len(keep) - uploaded} já atualizada(s) ===")
     return 0
 
 
