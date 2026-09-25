@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # Rodado pelo launchd a cada 3 h (instalar: ./notebook-auto.sh --install).
-# Mantém o caderno Darlas 2022 em dia sem depender de push:
-#   1. notebook-sync.py --prune   código das branches de trabalho (só sobe o que mudou)
-#   2. notebook-estado.py --prune fonte "estado e fila" gerada dos dados
+# Mantém caderno e site público em dia sem depender de ninguém lembrar:
+#   1. reports/prs/gerar.py          fila, textos dos PRs, fila.json e pendencias.json
+#   2. publica estagio-publico/data   commit + push só de data/ (dados gerados, sem nomes);
+#                                     o push dispara a Action que atualiza o quadro
+#   3. notebook-sync.py --prune      código das branches de trabalho (só sobe o que mudou)
+#   4. notebook-estado.py --prune    fonte "estado e fila" gerada dos dados
 # Falha = notificação do macOS + dev-local/logs/notebook-auto.log. Nada aqui
-# toca no caderno do Estágio (público).
+# toca no caderno do Estágio (público). Push automático de data/ autorizado pelo
+# dono em 25/09/2026.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 LABEL=br.labtech.notebook-auto
@@ -35,7 +39,22 @@ mkdir -p logs
 exec >> logs/notebook-auto.log 2>&1
 echo "=== $(date '+%F %T')"
 falhou=""
-./notebook-sync.py --prune || falhou="código"
+python3 ../reports/prs/gerar.py || falhou="fila"
+SITE=../estagio-publico
+if [ -z "$falhou" ] && [ -n "$(git -C "$SITE" status --porcelain -- data)" ]; then
+  # Dados públicos: nada de e-mail, @conta ou nome do dono antes de publicar.
+  if git -C "$SITE" diff -- data | grep '^+' | grep -qiE '[a-z0-9._-]+@[a-z0-9.-]+\.[a-z]|(^|[^a-z0-9])@[a-z0-9-]{2,}|lucas|darlas'; then
+    falhou="site (dado com possível identificação; não publicado)"
+  elif git -C "$SITE" add data \
+      && git -C "$SITE" commit -q -m "dados: fila e pendências atualizadas automaticamente" \
+      && git -C "$SITE" pull -q --rebase origin main \
+      && git -C "$SITE" push -q origin main; then
+    echo "site: data/ publicado"
+  else
+    falhou="site"
+  fi
+fi
+./notebook-sync.py --prune || falhou="${falhou:+$falhou e }código"
 ./notebook-estado.py --prune || falhou="${falhou:+$falhou e }estado"
 if [ -n "$falhou" ]; then
   echo "FALHOU: $falhou"
