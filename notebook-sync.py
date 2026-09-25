@@ -38,9 +38,9 @@ TITLE_PREFIX = "LabTech código: "
 # RAG-TCC (outro projeto), demo-repository (modelo vazio), crispy-octo-cluster
 # (só o nginx do gateway descartado) e CLI (lançador genérico; o dev-local faz isso).
 REPOS = {
-    "python-services": "feat/issue-64-submit-unico",
+    "python-services": "feat/issue-35-pedir-mudancas",
     "shared-resources": "chore/graphene-3",
-    "interfaces-usuario": "feat/issue-64-submit-unico",
+    "interfaces-usuario": "fix/agenda-sem-horario-passado",
     "scripts": "main",
     "entidades": "main",
     "teachers-allocation": "chore/runtime-updates",
