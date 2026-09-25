@@ -43,7 +43,7 @@ REPOS = {
     "interfaces-usuario": "fix/agenda-sem-horario-passado",
     "scripts": "main",
     "entidades": "main",
-    "teachers-allocation": "chore/runtime-updates",
+    "teachers-allocation": "fix/signin-so-coordenador",
     "supreme-test-framework": "chore/e2e-container",
     "ajuda-documentacao": "main",
 }
