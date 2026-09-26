@@ -32,7 +32,7 @@ LAB = pathlib.Path(__file__).resolve().parents[1]
 NOTEBOOK_ID = "33c068ee-16a4-4fd2-852b-f111adaa5087"  # Darlas 2022
 TITLE_PREFIX = "LabTech código: "
 
-# repo -> branch (ponta da pilha de branches locais em 25/09/2026). Dos 16 repos da
+# repo -> branch (ponta das alterações locais em 26/09/2026). Dos 16 repos da
 # org, estes são os que interessam ao Reservas; ficam de fora java-services e
 # eventos-angular (arquivados), Hi.Events (fork sem commits), CoOps (métricas),
 # RAG-TCC (outro projeto), demo-repository (modelo vazio), crispy-octo-cluster
@@ -43,7 +43,7 @@ REPOS = {
     "interfaces-usuario": "chore/deps-descontinuadas",
     "scripts": "main",
     "entidades": "main",
-    "teachers-allocation": "fix/get-professors-do-banco",
+    "teachers-allocation": "feat/persist-course-schedule-prototype",
     "supreme-test-framework": "chore/e2e-container",
     "ajuda-documentacao": "main",
 }
