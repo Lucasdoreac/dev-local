@@ -32,20 +32,13 @@ LAB = pathlib.Path(__file__).resolve().parents[1]
 NOTEBOOK_ID = "33c068ee-16a4-4fd2-852b-f111adaa5087"  # Darlas 2022
 TITLE_PREFIX = "LabTech código: "
 
-# repo -> branch (ponta das alterações locais em 26/09/2026). Dos 16 repos da
-# org, estes são os que interessam ao Reservas; ficam de fora java-services e
-# eventos-angular (arquivados), Hi.Events (fork sem commits), CoOps (métricas),
-# RAG-TCC (outro projeto), demo-repository (modelo vazio), crispy-octo-cluster
-# (só o nginx do gateway descartado) e CLI (lançador genérico; o dev-local faz isso).
+# repo -> branch da rodada de prioridades (26/09/2026). Escopo acordado:
+# Reservas API, Auth/catálogo, interface e framework de testes.
 REPOS = {
-    "python-services": "fix/reserva-so-do-dono",
-    "shared-resources": "fix/busca-ofertas-todas",
-    "interfaces-usuario": "chore/deps-descontinuadas",
-    "scripts": "main",
-    "entidades": "main",
-    "teachers-allocation": "feat/persist-course-schedule-prototype",
-    "supreme-test-framework": "chore/e2e-container",
-    "ajuda-documentacao": "main",
+    "python-services": "fix/api-local-mongo-uri",
+    "shared-resources": "fix/auth-local-mongo-uri",
+    "interfaces-usuario": "chore/dependency-refresh",
+    "supreme-test-framework": "chore/dependency-refresh",
 }
 # Dados que não sobem (nomes de professores, cópia do banco da UDF).
 REPO_EXCLUDES = {
