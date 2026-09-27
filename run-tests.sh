@@ -19,14 +19,21 @@ status=0
 
 run_python_services() {
   echo "[python-services] build + pytest"
-  docker build -q -t labtech-python-services-tests "$LAB/python-services" >/dev/null || return 1
-  docker run --rm \
-    -e MONGO_URI=mongodb://localhost:27017/ \
-    -e MONGO_DATABASE=rooms-reservation-app \
-    -e FLASK_ENV=development \
-    -e SERVER_NAME=localhost:5000 \
-    labtech-python-services-tests \
-    sh -c "poetry run pytest -v"  # arquivos: [tool.pytest.ini_options] do pyproject
+  if [ -f "$LAB/python-services/Dockerfile" ]; then
+    docker build -q -t labtech-python-services-tests "$LAB/python-services" >/dev/null || return 1
+    docker run --rm \
+      -e MONGO_URI=mongodb://localhost:27017/ \
+      -e MONGO_DATABASE=rooms-reservation-app \
+      -e FLASK_ENV=development \
+      -e SERVER_NAME=localhost:5000 \
+      labtech-python-services-tests \
+      sh -c "poetry run pytest -v"  # arquivos: [tool.pytest.ini_options] do pyproject
+  else
+    # O main atual não contém Dockerfile. Reutiliza a imagem do serviço Compose
+    # em um container descartável; o bind mount aponta para o checkout atual.
+    docker compose run --rm --no-deps api sh -lc \
+      "cd /python-services && poetry install --no-interaction --no-root && poetry run pytest -v"
+  fi
 }
 
 run_internal_apis() {
