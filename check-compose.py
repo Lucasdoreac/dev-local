@@ -19,6 +19,7 @@ import sys
 MIN_POSTGRES = 18
 MIN_MONGO = 8
 MIN_REDIS = 8
+EXPECTED_REDIS_IMAGE = "redis:8.10.1"
 DEV = pathlib.Path(__file__).resolve().parent
 
 
@@ -36,6 +37,8 @@ def problems(svcs):
         if image and not built_here and "@sha256:" not in image and (":" not in image.rsplit("/", 1)[-1] or image.endswith(":latest")):
             found.append(f"{name}: imagem sem tag fixa ({image})")
         rm = re.fullmatch(r"(?:docker\.io/library/)?redis:(\d+)(?:[.\-].*)?", image)
+        if name == "redis" and image != EXPECTED_REDIS_IMAGE:
+            found.append(f"redis: expected {EXPECTED_REDIS_IMAGE} (found {image})")
         if rm and int(rm.group(1)) < MIN_REDIS:
             found.append(f"{name}: redis:{rm.group(1)} (mínimo {MIN_REDIS})")
         mm = re.fullmatch(r"(?:docker\.io/library/)?mongo:(\d+)(?:[.\-].*)?", image)

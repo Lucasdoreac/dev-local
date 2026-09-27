@@ -34,7 +34,7 @@ services:
       retries: 20
 
   redis:
-    image: redis:8.2  # linha de suporte longo do Redis 8 (EOL 2030)
+    image: redis:8.10.1  # latest stable patch with security fixes (2026-08)
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     volumes: [redis_data:/data]
