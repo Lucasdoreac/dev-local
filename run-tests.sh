@@ -32,7 +32,7 @@ run_python_services() {
     # O main atual não contém Dockerfile. Reutiliza a imagem do serviço Compose
     # em um container descartável; o bind mount aponta para o checkout atual.
     docker compose run --rm --no-deps api sh -lc \
-      "cd /python-services && poetry install --no-interaction --no-root && poetry run pytest -v"
+      "cd /python-services && poetry install --no-interaction --no-root && PYTHONPATH=src poetry run pytest -v"
   fi
 }
 
