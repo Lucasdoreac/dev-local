@@ -161,14 +161,14 @@ services:
   # Frontends com node_modules próprio (volume): o do Mac tem binário darwin.
   # A main atual mantém yarn.lock; instalar de forma congelada no volume local.
   reservas:
-    image: node:24.21.0  # LTS fixada em interfaces-usuario/reservas/.nvmrc
+    image: node:24.21.0  # Runtime local; a .nvmrc da main está defasada (v20), PR #40 propõe v26.10.0.
     restart: unless-stopped
     depends_on: [api]
     working_dir: /app
     volumes: [../interfaces-usuario/reservas:/app, reservas_node_modules:/app/node_modules]
     environment:
       REACT_APP_API_BASE_URL: http://localhost:5000
-      # Vite (vite.config.js: porta 3000, host 0.0.0.0) lê esta para usar polling na pasta montada.
+      # CRA/Webpack usa polling para observar arquivos na pasta montada pelo Docker.
       WATCHPACK_POLLING: "true"
     ports: ["127.0.0.1:3000:3000"]
     command: sh -c "yarn install --frozen-lockfile --non-interactive && yarn start"
