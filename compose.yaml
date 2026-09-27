@@ -84,11 +84,16 @@ services:
   # dependências já instaladas no build, código vem do host; um
   # `docker compose restart <serviço>` pega mudança de código sem rebuild.
   auth:
-    build: {context: ../shared-resources/auth_service}
+    build:
+      context: ../shared-resources/auth_service
+      dockerfile: ../dev-local/dockerfiles/Dockerfile.poetry
+      args: {APP_DIR: /auth_service}
     restart: unless-stopped
     # redis: cache do login (auth) e do catálogo (internal); sem ele as rotas dão 500.
     depends_on: {seed: {condition: service_completed_successfully}, redis: {condition: service_started}}
-    volumes: [../shared-resources/auth_service:/auth_service]
+    volumes:
+      - ../shared-resources/auth_service:/auth_service
+      - ./local_auth.py:/dev-local/local_auth.py:ro
     environment:
       MONGO_URI: mongodb://mongo:27017
       MONGO_DATABASE: rooms-reservation-app
@@ -98,9 +103,13 @@ services:
       REDIS_URL: redis://redis:6379/0
       REACT_APP: http://127.0.0.1:3000
     ports: ["127.0.0.1:5050:5050"]
+    command: sh -c "PYTHONPATH=/dev-local poetry run gunicorn -w 2 -b 0.0.0.0:5050 local_auth:app"
 
   internal:
-    build: {context: ../shared-resources/internal_apis}
+    build:
+      context: ../shared-resources/internal_apis
+      dockerfile: ../dev-local/dockerfiles/Dockerfile.poetry
+      args: {APP_DIR: /internal_apis}
     restart: unless-stopped
     # redis: cache do login (auth) e do catálogo (internal); sem ele as rotas dão 500.
     depends_on: {seed: {condition: service_completed_successfully}, redis: {condition: service_started}}
@@ -111,12 +120,18 @@ services:
       MONGO_DATABASE: rooms-reservation-app
       REDIS_URL: redis://redis:6379/0
     ports: ["127.0.0.1:5081:5081"]
+    command: sh -c "PYTHONPATH=src poetry run gunicorn -w 2 -b 0.0.0.0:5081 main:internal_apis"
 
   api:
-    build: {context: ../python-services}
+    build:
+      context: ../python-services
+      dockerfile: ../dev-local/dockerfiles/Dockerfile.poetry
+      args: {APP_DIR: /python-services}
     restart: unless-stopped
     depends_on: [auth, internal, minio]
-    volumes: [../python-services:/python-services]
+    volumes:
+      - ../python-services:/python-services
+      - ./local_api.py:/dev-local/local_api.py:ro
     # internal.env traz INTERNAL_API_KEY: a chave que o api manda ao catálogo
     env_file: [minio.env, internal.env]
     environment:
@@ -141,10 +156,10 @@ services:
     # MinIO usa). Remapeia antes de subir o gunicorn do Dockerfile.
     command: >-
       sh -c "export MINIO_ACCESS_KEY=$$MINIO_ROOT_USER MINIO_SECRET_KEY=$$MINIO_ROOT_PASSWORD &&
-      PYTHONPATH=src poetry run gunicorn -w 2 -b 0.0.0.0:5000 main:reservation_app"
+      PYTHONPATH=src:/dev-local poetry run gunicorn -w 2 -b 0.0.0.0:5000 local_api:app"
 
   # Frontends com node_modules próprio (volume): o do Mac tem binário darwin.
-  # `npm ci` não reescreve o lockfile do repo.
+  # A main atual mantém yarn.lock; instalar de forma congelada no volume local.
   reservas:
     image: node:24  # = interfaces-usuario/reservas/.nvmrc
     restart: unless-stopped
@@ -156,7 +171,7 @@ services:
       # Vite (vite.config.js: porta 3000, host 0.0.0.0) lê esta para usar polling na pasta montada.
       WATCHPACK_POLLING: "true"
     ports: ["127.0.0.1:3000:3000"]
-    command: sh -c "(npm ci --no-audit --no-fund --loglevel=error || npm ci --no-audit --no-fund --loglevel=error) && npm start"
+    command: sh -c "yarn install --frozen-lockfile --non-interactive && yarn start"
 
   # Alocação de Professores (repo teachers-allocation): app à parte do Reservas,
   # com Postgres próprio, login próprio e ids próprios (ver
@@ -164,6 +179,7 @@ services:
   # frontend usa REACT_APP_API_URL; antes a URL era fixa em localhost:5000, que
   # é a API do Reservas). Dados 100% sintéticos (backend/seed_dev.py).
   alocacao-db:
+    profiles: [alocacao]
     # Postgres 18: a imagem grava em /var/lib/postgresql/18/docker, então o volume
     # vai em /var/lib/postgresql (em .../data os dados ficariam fora do volume).
     # Migrado do 17 com pg-upgrade.sh; volumes antigos (13, 17) ficam até o dono decidir.
@@ -180,6 +196,7 @@ services:
       retries: 20
 
   alocacao-api:
+    profiles: [alocacao]
     build: {context: ../teachers-allocation/backend}
     image: labtech-dev-alocacao-api
     restart: unless-stopped
@@ -192,6 +209,7 @@ services:
     ports: ["127.0.0.1:5002:5000"]
 
   alocacao-seed:
+    profiles: [alocacao]
     build: {context: ../teachers-allocation/backend}
     image: labtech-dev-alocacao-api
     depends_on: {alocacao-api: {condition: service_started}, alocacao-db: {condition: service_healthy}}
@@ -204,6 +222,7 @@ services:
     restart: "no"
 
   alocacao-web:
+    profiles: [alocacao]
     image: node:24  # era 22 (só manutenção desde 10/2025)
     restart: unless-stopped
     depends_on: [alocacao-api]
