@@ -161,7 +161,7 @@ services:
   # Frontends com node_modules próprio (volume): o do Mac tem binário darwin.
   # A main atual mantém yarn.lock; instalar de forma congelada no volume local.
   reservas:
-    image: node:24  # = interfaces-usuario/reservas/.nvmrc
+    image: node:24.21.0  # LTS fixada em interfaces-usuario/reservas/.nvmrc
     restart: unless-stopped
     depends_on: [api]
     working_dir: /app
