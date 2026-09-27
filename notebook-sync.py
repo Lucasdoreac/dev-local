@@ -35,7 +35,7 @@ TITLE_PREFIX = "LabTech código: "
 # repo -> branch da rodada de prioridades (26/09/2026). Escopo acordado:
 # Reservas API, Auth/catálogo, interface e framework de testes.
 REPOS = {
-    "python-services": "chore/dependency-refresh",
+    "python-services": "test/repair-logger-tests",
     "shared-resources": "chore/dependency-refresh",
     "interfaces-usuario": "chore/dependency-refresh",
     "supreme-test-framework": "chore/dependency-refresh",
