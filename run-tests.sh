@@ -38,10 +38,16 @@ run_python_services() {
 
 run_internal_apis() {
   echo "[internal_apis] build + pytest"
-  docker build -q -t labtech-internal-apis-tests "$LAB/shared-resources/internal_apis" >/dev/null || return 1
-  docker run --rm \
-    labtech-internal-apis-tests \
-    sh -c "PYTHONPATH=src poetry run pytest src/Tests -v"
+  if [ -f "$LAB/shared-resources/internal_apis/Dockerfile" ]; then
+    docker build -q -t labtech-internal-apis-tests "$LAB/shared-resources/internal_apis" >/dev/null || return 1
+    docker run --rm \
+      labtech-internal-apis-tests \
+      sh -c "PYTHONPATH=src poetry run pytest src/Tests -v"
+  else
+    # A imagem já existe no Compose, mas o main atual não contém Dockerfile.
+    docker compose run --rm --no-deps internal sh -lc \
+      "cd /internal_apis && poetry install --no-interaction --no-root && PYTHONPATH=src poetry run pytest src/Tests -v"
+  fi
 }
 
 run_auth_service() {
