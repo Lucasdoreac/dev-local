@@ -34,7 +34,7 @@ E2E_FRAMEWORK_DIR=~/LABTECH/supreme-test-framework/.worktrees/e2e-dependencies-f
 ./run-tests.sh e2e
 ```
 
-O runner inicia temporariamente `selenium/standalone-chrome:4.48.0-20260905`
+O runner inicia temporariamente `selenium/standalone-chrome:4.49.0-20260909`
 em host networking para o browser acessar os links locais em `127.0.0.1`. O
 Python/Behave roda em outro container na rede do Compose. Cada execução usa um
 e-mail sintético único e remove somente os documentos Mongo e as chaves Redis
