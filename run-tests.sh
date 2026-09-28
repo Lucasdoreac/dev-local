@@ -172,7 +172,9 @@ run_framework_checks() {
       tar -xf /tmp/source.tar -C /workspace
       cd /workspace
       python -m pip install --disable-pip-version-check -r requirements.txt
-      python -m unittest discover -s tests -v
+      if [ -d tests ]; then
+        python -m unittest discover -s tests -v
+      fi
       python -m compileall -q features page_objects utils
       python -c "from utils.browser_setup import setup_webdriver; assert callable(setup_webdriver)"
       behave --dry-run --no-color
@@ -261,8 +263,11 @@ run_framework_e2e() (
       cd /workspace
       sed -i "s/e2e-ci@udf.edu.br/$TEST_EMAIL/g" features/login.feature
       python -m pip install --disable-pip-version-check -r requirements.txt
-      python -m compileall -q features page_objects utils tests
-      python -m unittest discover -s tests -v
+      python -m compileall -q features page_objects utils
+      if [ -d tests ]; then
+        python -m compileall -q tests
+        python -m unittest discover -s tests -v
+      fi
       python - <<"PY"
 import json, os, time, urllib.request
 targets = {

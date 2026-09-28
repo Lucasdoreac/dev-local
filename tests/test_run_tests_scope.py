@@ -11,6 +11,14 @@ LAB = ROOT.parent
 
 
 class RunTestsScopeTest(unittest.TestCase):
+    def test_framework_unit_tests_are_optional_for_clean_heads_without_tests_dir(self):
+        script = SCRIPT.read_text()
+        self.assertRegex(
+            script,
+            r"if \[ -d tests \]; then\s+"
+            r"python -m unittest discover -s tests -v\s+fi",
+        )
+
     def test_all_targets_four_review_heads_without_live_e2e_or_allocation(self):
         with tempfile.TemporaryDirectory() as temp:
             temp_path = Path(temp)
