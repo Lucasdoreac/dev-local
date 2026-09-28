@@ -51,28 +51,15 @@ services:
     ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
     volumes: [minio_data:/data]
 
-  # Catálogo real (base `scripts` do backup do repo scripts) + 1 coordenador
-  # SINTÉTICO para o fluxo de aprovação achar destinatário (o catálogo não tem
-  # coordenador por curso — backlog DATA-03). A base transacional real do mesmo
-  # backup NÃO é carregada. Roda a cada `up` e recria só as coleções de catálogo.
+  # Seed de desenvolvimento executado somente se todas as coleções de catálogo
+  # estiverem vazias; `docker compose up` nunca pode sobrescrever dados existentes.
   seed:
     image: mongo:8.0  # mesmas ferramentas (mongorestore) do serviço mongo
     depends_on: {mongo: {condition: service_healthy}}
     volumes:
       - ../scripts/new_collection/labtech.backup.tar.gz:/seed/labtech.backup.tar.gz:ro
-    command:
-      - bash
-      - -c
-      - |
-        set -euo pipefail
-        t=$$(mktemp -d)
-        tar -xzf /seed/labtech.backup.tar.gz -C "$$t" mongo-backups/scripts
-        mongorestore --host mongo --quiet --drop --db rooms-reservation-app "$$t/mongo-backups/scripts/scripts"
-        mongosh --host mongo --quiet rooms-reservation-app --eval '
-          db.teachers.updateOne({_id:"coord-sintetico-enf"},
-            {$$set:{PROFESSOR:"Coordenação Sintética ENF (teste local)", COD_CURS:[31], email:"coordenacao-sintetica@udf.edu.br"}}, {upsert:true});
-          db.courses.updateOne({_id:31}, {$$set:{COORDINATOR:"coord-sintetico-enf"}});
-          print("seed ok: cursos", db.courses.countDocuments(), "salas", db.rooms.countDocuments())'
+      - ./seed-catalog.sh:/dev-local/seed-catalog.sh:ro
+    command: ["bash", "/dev-local/seed-catalog.sh"]
 
   # auth/internal/api: imagens construídas a partir do Dockerfile de cada
   # serviço (Poetry + Gunicorn) em vez do antigo `python:3.12-slim` +
