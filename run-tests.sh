@@ -13,7 +13,7 @@ set -uo pipefail
 cd "$(dirname "$0")"
 LAB=$(cd .. && pwd)
 
-PYTHON_SOURCE="${PYTHON_SERVICES_DIR:-$LAB/python-services/.worktrees/python-deps-on-gate}"
+PYTHON_SOURCE="${PYTHON_SERVICES_DIR:-$LAB/python-services/.worktrees/python-logger-ci-focused}"
 INTERNAL_SOURCE="${INTERNAL_APIS_DIR:-$LAB/shared-resources/.worktrees/catalog-deps-on-gate/internal_apis}"
 AUTH_SOURCE="${AUTH_SERVICE_DIR:-$LAB/shared-resources/.worktrees/auth-dependencies-focused/auth_service}"
 FRAMEWORK_SOURCE="${E2E_FRAMEWORK_DIR:-$LAB/supreme-test-framework/.worktrees/e2e-dependencies-focused}"

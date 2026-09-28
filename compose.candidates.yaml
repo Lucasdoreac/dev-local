@@ -1,0 +1,23 @@
+# Worktree overlay for the local dependency refresh validation.
+# Use together with compose.yaml; default dev stack keeps using the main checkouts.
+services:
+  auth:
+    build:
+      context: ../shared-resources/.worktrees/auth-dependencies-focused/auth_service
+      dockerfile: ../../../../dev-local/dockerfiles/Dockerfile.poetry
+    volumes:
+      - ../shared-resources/.worktrees/auth-dependencies-focused/auth_service:/auth_service
+
+  internal:
+    build:
+      context: ../shared-resources/.worktrees/catalog-deps-on-gate/internal_apis
+      dockerfile: ../../../../dev-local/dockerfiles/Dockerfile.poetry
+    volumes:
+      - ../shared-resources/.worktrees/catalog-deps-on-gate/internal_apis:/internal_apis
+
+  api:
+    build:
+      context: ../python-services/.worktrees/python-logger-ci-focused
+      dockerfile: ../../../dev-local/dockerfiles/Dockerfile.poetry
+    volumes:
+      - ../python-services/.worktrees/python-logger-ci-focused:/python-services
