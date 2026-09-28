@@ -1,0 +1,16 @@
+FROM python:3.14.7-slim
+
+ARG POETRY_VERSION=2.4.1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Older locked wheels may not publish a CPython 3.14 build. Keep test-only
+# native build tools in the disposable runner image, not in application images.
+RUN apt-get update \
+    && apt-get install --no-install-recommends --yes \
+        build-essential \
+        libffi-dev \
+        libssl-dev \
+        pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python -m pip install --no-cache-dir "poetry==${POETRY_VERSION}"

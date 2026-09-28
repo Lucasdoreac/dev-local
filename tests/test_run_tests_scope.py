@@ -31,19 +31,20 @@ esac
             )
             fake_docker.chmod(0o755)
             env = os.environ.copy()
+            for key in (
+                "PYTHON_SERVICES_DIR",
+                "INTERNAL_APIS_DIR",
+                "AUTH_SERVICE_DIR",
+                "E2E_FRAMEWORK_DIR",
+                "PYTHON_SERVICES_TEST_IMAGE",
+                "INTERNAL_APIS_TEST_IMAGE",
+                "AUTH_SERVICE_TEST_IMAGE",
+                "BASELINE_PYTHON_TEST_IMAGE",
+            ):
+                env.pop(key, None)
             env.update(
                 PATH=f"{fake_bin}:{env['PATH']}",
                 DOCKER_LOG=str(command_log),
-                PYTHON_SERVICES_DIR=str(
-                    LAB / "python-services/.worktrees/python-logger-ci-focused"
-                ),
-                INTERNAL_APIS_DIR=str(
-                    LAB / "shared-resources/.worktrees/internal-api-gate-focused/internal_apis"
-                ),
-                AUTH_SERVICE_DIR=str(
-                    LAB / "shared-resources/.worktrees/auth-dependencies-focused/auth_service"
-                ),
-                E2E_FRAMEWORK_DIR=str(LAB / "supreme-test-framework"),
             )
             result = subprocess.run(
                 ["bash", str(SCRIPT), "all"],
@@ -62,11 +63,20 @@ esac
             self.assertNotIn("teachers-allocation", result.stdout)
 
             docker_calls = command_log.read_text()
-            self.assertNotIn("docker build", docker_calls)
+            test_dockerfile = (ROOT / "dockerfiles/Dockerfile.test-python").read_text()
+            self.assertIn("labtech-dev-runner-python:3.14.7", docker_calls)
+            self.assertNotIn("python:3.12-slim", docker_calls)
+            self.assertIn(":/root/.cache/pypoetry", docker_calls)
+            self.assertIn(":/root/.cache/pip", docker_calls)
+            self.assertNotIn('poetry=="$POETRY_VERSION"', docker_calls)
+            self.assertIn("ARG POETRY_VERSION=2.4.1", test_dockerfile)
+            self.assertIn('poetry==${POETRY_VERSION}', test_dockerfile)
+            self.assertIn("python-deps-on-gate", docker_calls)
+            self.assertIn("catalog-deps-on-gate", docker_calls)
+            self.assertIn("e2e-dependencies-focused", result.stdout)
+            self.assertIn("build --quiet", docker_calls)
             self.assertIn("pytest -q", docker_calls)
             self.assertIn("behave --dry-run --no-color", docker_calls)
-            self.assertIn("python-logger-ci-focused", docker_calls)
-            self.assertIn("internal-api-gate-focused", docker_calls)
             self.assertIn("auth-dependencies-focused", docker_calls)
             self.assertNotIn("--network host", docker_calls)
 

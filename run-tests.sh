@@ -8,19 +8,40 @@
 #   ./run-tests.sh python|internal|auth|framework|e2e|alocacao
 #
 # O alvo framework reproduz o workflow isolado (compile/import/Behave dry-run).
-# O alvo e2e usa Chrome efêmero em host networking para preservar localhost:3000.
+# O alvo e2e usa runner e Chrome descartáveis em Docker contra a pilha Compose.
 set -uo pipefail
 cd "$(dirname "$0")"
 LAB=$(cd .. && pwd)
 
-PYTHON_SOURCE="${PYTHON_SERVICES_DIR:-$LAB/python-services/.worktrees/python-logger-ci-focused}"
-INTERNAL_SOURCE="${INTERNAL_APIS_DIR:-$LAB/shared-resources/.worktrees/internal-api-gate-focused/internal_apis}"
+PYTHON_SOURCE="${PYTHON_SERVICES_DIR:-$LAB/python-services/.worktrees/python-deps-on-gate}"
+INTERNAL_SOURCE="${INTERNAL_APIS_DIR:-$LAB/shared-resources/.worktrees/catalog-deps-on-gate/internal_apis}"
 AUTH_SOURCE="${AUTH_SERVICE_DIR:-$LAB/shared-resources/.worktrees/auth-dependencies-focused/auth_service}"
-FRAMEWORK_SOURCE="${E2E_FRAMEWORK_DIR:-$LAB/supreme-test-framework}"
-PYTHON_IMAGE="python:3.12-slim"
+FRAMEWORK_SOURCE="${E2E_FRAMEWORK_DIR:-$LAB/supreme-test-framework/.worktrees/e2e-dependencies-focused}"
+LATEST_PYTHON_IMAGE="labtech-dev-runner-python:3.14.7"
+BASELINE_PYTHON_IMAGE="${BASELINE_PYTHON_TEST_IMAGE:-$LATEST_PYTHON_IMAGE}"
+PYTHON_SERVICES_TEST_IMAGE="${PYTHON_SERVICES_TEST_IMAGE:-$BASELINE_PYTHON_IMAGE}"
+INTERNAL_APIS_TEST_IMAGE="${INTERNAL_APIS_TEST_IMAGE:-$BASELINE_PYTHON_IMAGE}"
+AUTH_SERVICE_TEST_IMAGE="${AUTH_SERVICE_TEST_IMAGE:-$LATEST_PYTHON_IMAGE}"
+PYTHON_TEST_DOCKERFILE="$LAB/dev-local/dockerfiles/Dockerfile.test-python"
 CHROME_IMAGE="selenium/standalone-chrome:4.49.0-20260909"
 POETRY_VERSION="2.4.1"
 DEV_NETWORK="${DEV_TEST_NETWORK:-labtech-dev_default}"
+LATEST_PYTHON_IMAGE_READY=0
+TEST_CACHE_ROOT="${LABTECH_TEST_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/labtech-dev-local-tests}"
+POETRY_CACHE_HOST="$TEST_CACHE_ROOT/pypoetry"
+PIP_CACHE_HOST="$TEST_CACHE_ROOT/pip"
+mkdir -p "$POETRY_CACHE_HOST" "$PIP_CACHE_HOST" || {
+  echo "[runner] não foi possível criar o cache local de dependências" >&2
+  exit 1
+}
+PYTHON_CACHE_ARGS=(
+  -v "$POETRY_CACHE_HOST:/root/.cache/pypoetry"
+  -v "$PIP_CACHE_HOST:/root/.cache/pip"
+)
+PYTHON_CACHE_ENVS=(
+  -e POETRY_CACHE_DIR=/root/.cache/pypoetry
+  -e PIP_CACHE_DIR=/root/.cache/pip
+)
 PROXY_ARGS=(
   -e "HTTP_PROXY=${DEV_TEST_PROXY:-}"
   -e "HTTPS_PROXY=${DEV_TEST_PROXY:-}"
@@ -29,6 +50,19 @@ PROXY_ARGS=(
 )
 
 status=0
+
+ensure_python_test_image() {
+  local image="$1"
+  if [[ "$image" != "$LATEST_PYTHON_IMAGE" || "$LATEST_PYTHON_IMAGE_READY" -eq 1 ]]; then
+    return 0
+  fi
+  docker build --quiet \
+    --tag "$LATEST_PYTHON_IMAGE" \
+    --build-arg "POETRY_VERSION=$POETRY_VERSION" \
+    --file "$PYTHON_TEST_DOCKERFILE" \
+    "$(dirname "$PYTHON_TEST_DOCKERFILE")" >/dev/null || return 1
+  LATEST_PYTHON_IMAGE_READY=1
+}
 
 describe_source() {
   local name="$1" source="$2"
@@ -43,20 +77,20 @@ describe_source() {
 }
 
 run_poetry_suite() {
-  local name="$1" source="$2" test_command="$3" network="${4:-bridge}"
+  local name="$1" source="$2" test_command="$3" network="${4:-bridge}" image="${5:-$LATEST_PYTHON_IMAGE}"
   describe_source "$name" "$source" || return 1
+  ensure_python_test_image "$image" || return 1
   [[ -f "$source/pyproject.toml" && -f "$source/poetry.lock" ]] || {
     echo "[$name] pyproject.toml ou poetry.lock ausente" >&2
     return 1
   }
 
   docker run --rm --network "$network" "${PROXY_ARGS[@]}" \
+    "${PYTHON_CACHE_ARGS[@]}" "${PYTHON_CACHE_ENVS[@]}" \
     -v "$source:/source:ro" \
-    -e POETRY_VERSION="$POETRY_VERSION" \
     -e TEST_COMMAND="$test_command" \
     -e REDIS_URL="${REDIS_URL:-}" \
-    "$PYTHON_IMAGE" sh -ec '
-      python -m pip install --disable-pip-version-check --no-cache-dir "poetry==$POETRY_VERSION"
+    "$image" sh -ec '
       mkdir -p /workspace
       tar -C /source \
         --exclude=.git --exclude=.worktrees --exclude=__pycache__ \
@@ -73,13 +107,13 @@ run_poetry_suite() {
 run_python_services() {
   echo "[python-services] install congelado + pytest"
   run_poetry_suite python-services "$PYTHON_SOURCE" \
-    "PYTHONPATH=src poetry run pytest -q"
+    "PYTHONPATH=src poetry run pytest -q" bridge "$PYTHON_SERVICES_TEST_IMAGE"
 }
 
 run_internal_apis() {
   echo "[shared-resources/internal_apis] install congelado + pytest"
   run_poetry_suite internal_apis "$INTERNAL_SOURCE" \
-    "PYTHONPATH=src poetry run pytest src/Tests -q"
+    "PYTHONPATH=src poetry run pytest src/Tests -q" bridge "$INTERNAL_APIS_TEST_IMAGE"
 }
 
 start_isolated_redis() {
@@ -105,7 +139,7 @@ start_isolated_redis() {
 
     echo "[auth_service] install congelado + pytest + Redis efêmero"
     REDIS_URL="redis://$redis_name:6379/15" run_poetry_suite auth_service "$AUTH_SOURCE" \
-      "PYTHONPATH=. poetry run pytest tests -q" "$DEV_NETWORK"
+      "PYTHONPATH=. poetry run pytest tests -q" "$DEV_NETWORK" "$AUTH_SERVICE_TEST_IMAGE"
   )
 }
 
@@ -119,6 +153,7 @@ run_auth_service() {
 
 run_framework_checks() {
   describe_source supreme-test-framework "$FRAMEWORK_SOURCE" || return 1
+  ensure_python_test_image "$LATEST_PYTHON_IMAGE" || return 1
   [[ -f "$FRAMEWORK_SOURCE/requirements.txt" ]] || {
     echo "[supreme-test-framework] requirements.txt ausente" >&2
     return 1
@@ -126,8 +161,9 @@ run_framework_checks() {
 
   echo "[supreme-test-framework] install de requirements + compile/import/Behave dry-run"
   docker run --rm --network bridge "${PROXY_ARGS[@]}" \
+    "${PYTHON_CACHE_ARGS[@]}" "${PYTHON_CACHE_ENVS[@]}" \
     -v "$FRAMEWORK_SOURCE:/source:ro" \
-    "$PYTHON_IMAGE" sh -ec '
+    "$LATEST_PYTHON_IMAGE" sh -ec '
       mkdir -p /workspace
       tar -C /source \
         --exclude=.git --exclude=.worktrees --exclude=__pycache__ \
@@ -135,7 +171,8 @@ run_framework_checks() {
         --exclude="*.env" -cf /tmp/source.tar .
       tar -xf /tmp/source.tar -C /workspace
       cd /workspace
-      python -m pip install --disable-pip-version-check --no-cache-dir -r requirements.txt
+      python -m pip install --disable-pip-version-check -r requirements.txt
+      python -m unittest discover -s tests -v
       python -m compileall -q features page_objects utils
       python -c "from utils.browser_setup import setup_webdriver; assert callable(setup_webdriver)"
       behave --dry-run --no-color
@@ -144,6 +181,7 @@ run_framework_checks() {
 
 run_framework_e2e() (
   describe_source supreme-test-framework "$FRAMEWORK_SOURCE" || return 1
+  ensure_python_test_image "$LATEST_PYTHON_IMAGE" || return 1
   [[ -f "$FRAMEWORK_SOURCE/requirements.txt" ]] || {
     echo "[supreme-test-framework] requirements.txt ausente" >&2
     return 1
@@ -154,14 +192,14 @@ run_framework_e2e() (
   fi
 
   local chrome_name="labtech-e2e-chrome-$$"
-  local gateway
-  gateway="$(docker network inspect "$DEV_NETWORK" --format '{{(index .IPAM.Config 0).Gateway}}')"
+  local web_name="labtech-e2e-web-$$"
+  local web_alias="$web_name"
   local test_email="codex-e2e-$(date +%s)-$$@udf.edu.br"
   local cleanup_status=0
   cleanup_e2e() {
     local test_status=$?
     trap - EXIT
-    docker stop "$chrome_name" >/dev/null 2>&1 || true
+    docker rm -f "$chrome_name" "$web_name" >/dev/null 2>&1 || true
     docker compose exec -T mongo mongosh --quiet rooms-reservation-app --eval \
       "db.authentications.deleteMany({email: '$test_email'}).deletedCount" >/dev/null || cleanup_status=1
     local key
@@ -184,8 +222,14 @@ run_framework_e2e() (
     return 1
   fi
 
-  echo "[supreme-test-framework] iniciando Chrome efêmero ($CHROME_IMAGE)"
-  docker run -d --rm --name "$chrome_name" --network host --shm-size=1g \
+  echo "[supreme-test-framework] iniciando frontend e Chrome efêmeros na rede $DEV_NETWORK"
+  trap cleanup_e2e EXIT
+  docker compose run -d --no-deps --name "$web_name" \
+    -e VITE_API_BASE_URL=http://api:5000 -e "E2E_HOST=$web_alias" reservas >/dev/null || return 1
+  docker network disconnect "$DEV_NETWORK" "$web_name" || return 1
+  docker network connect --alias "$web_alias" "$DEV_NETWORK" "$web_name" || return 1
+  docker run -d --name "$chrome_name" --network "$DEV_NETWORK" \
+    --network-alias "$chrome_name" --shm-size=1g \
     -e SE_NODE_MAX_SESSIONS=1 \
     -e VIDEO_READY_PORT=9100 \
     -e SE_START_VNC=false \
@@ -195,19 +239,19 @@ run_framework_e2e() (
     "$CHROME_IMAGE" >/dev/null || return 1
   trap cleanup_e2e EXIT
 
-  echo "[supreme-test-framework] E2E real contra Reservas local com conta sintética isolada"
+  echo "[supreme-test-framework] E2E na rede Docker por aliases de serviço; conta sintética isolada"
   docker run --rm --network "$DEV_NETWORK" "${PROXY_ARGS[@]}" \
+    "${PYTHON_CACHE_ARGS[@]}" "${PYTHON_CACHE_ENVS[@]}" \
     -v "$FRAMEWORK_SOURCE:/source:ro" \
-    -v "$LAB/supreme-test-framework/utils/browser_setup.py:/overlay/browser_setup.py:ro" \
-    -v "$LAB/supreme-test-framework/tests/test_browser_setup.py:/overlay/test_browser_setup.py:ro" \
-    -e SELENIUM_REMOTE_URL="http://$gateway:4444/wd/hub" \
-    -e BASE_URL=http://127.0.0.1:3000 \
-    -e API_URL="http://$gateway:5000" \
+    -e SELENIUM_REMOTE_URL="http://$chrome_name:4444/wd/hub" \
+    -e E2E_WEB_URL="http://$web_alias:3000/organizer" \
+    -e BASE_URL="http://$web_alias:3000" \
+    -e API_URL=http://api:5000 \
     -e ENV=production \
     -e TEST_EMAIL="$test_email" \
-    -e NO_PROXY="$gateway,127.0.0.1,localhost" \
-    -e no_proxy="$gateway,127.0.0.1,localhost" \
-    "$PYTHON_IMAGE" sh -ec '
+    -e NO_PROXY="$chrome_name,$web_alias,api,127.0.0.1,localhost" \
+    -e no_proxy="$chrome_name,$web_alias,api,127.0.0.1,localhost" \
+    "$LATEST_PYTHON_IMAGE" sh -ec '
       mkdir -p /workspace
       tar -C /source \
         --exclude=.git --exclude=.worktrees --exclude=__pycache__ \
@@ -215,29 +259,30 @@ run_framework_e2e() (
         --exclude="*.env" -cf /tmp/source.tar .
       tar -xf /tmp/source.tar -C /workspace
       cd /workspace
-      cp /overlay/browser_setup.py utils/browser_setup.py
-      mkdir -p tests
-      cp /overlay/test_browser_setup.py tests/test_browser_setup.py
       sed -i "s/e2e-ci@udf.edu.br/$TEST_EMAIL/g" features/login.feature
-      python -m pip install --disable-pip-version-check --no-cache-dir -r requirements.txt
+      python -m pip install --disable-pip-version-check -r requirements.txt
       python -m compileall -q features page_objects utils tests
-      python -m unittest discover -s tests -p "test_browser_setup.py" -v
+      python -m unittest discover -s tests -v
       python - <<"PY"
 import json, os, time, urllib.request
-url = os.environ["SELENIUM_REMOTE_URL"].removesuffix("/wd/hub") + "/wd/hub/status"
-for _ in range(60):
-    try:
-        with urllib.request.urlopen(url, timeout=2) as response:
-            status = json.load(response)
-        if status.get("value", {}).get("ready"):
-            break
-    except Exception:
-        pass
-    time.sleep(1)
-else:
-    raise SystemExit(f"Selenium Grid não ficou pronto: {url}")
+targets = {
+    "Selenium Grid": (os.environ["SELENIUM_REMOTE_URL"].removesuffix("/wd/hub") + "/wd/hub/status", lambda data: data.get("value", {}).get("ready")),
+    "frontend": (os.environ["E2E_WEB_URL"], lambda response: response.status == 200),
+}
+for label, (url, ready) in targets.items():
+    for _ in range(90):
+        try:
+            with urllib.request.urlopen(url, timeout=3) as response:
+                data = json.load(response) if label == "Selenium Grid" else response
+                if ready(data):
+                    break
+        except Exception:
+            pass
+        time.sleep(1)
+    else:
+        raise SystemExit(f"{label} não ficou pronto na rede Docker: {url}")
 PY
-      behave --no-color
+      behave --no-color -D "BASE_URL=$BASE_URL" -D "API_URL=$API_URL"
     '
 )
 
