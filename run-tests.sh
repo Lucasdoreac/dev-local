@@ -14,9 +14,9 @@ cd "$(dirname "$0")"
 LAB=$(cd .. && pwd)
 
 PYTHON_SOURCE="${PYTHON_SERVICES_DIR:-$LAB/python-services/.worktrees/python-logger-ci-focused}"
-INTERNAL_SOURCE="${INTERNAL_APIS_DIR:-$LAB/shared-resources/.worktrees/catalog-deps-on-gate/internal_apis}"
+INTERNAL_SOURCE="${INTERNAL_APIS_DIR:-$LAB/shared-resources/.worktrees/internal-api-gate-focused/internal_apis}"
 AUTH_SOURCE="${AUTH_SERVICE_DIR:-$LAB/shared-resources/.worktrees/auth-dependencies-focused/auth_service}"
-FRAMEWORK_SOURCE="${E2E_FRAMEWORK_DIR:-$LAB/supreme-test-framework/.worktrees/e2e-dependencies-focused}"
+FRAMEWORK_SOURCE="${E2E_FRAMEWORK_DIR:-$LAB/.worktrees/e2e-pr-locator-fix}"
 LATEST_PYTHON_IMAGE="labtech-dev-runner-python:3.14.7"
 BASELINE_PYTHON_IMAGE="${BASELINE_PYTHON_TEST_IMAGE:-$LATEST_PYTHON_IMAGE}"
 PYTHON_SERVICES_TEST_IMAGE="${PYTHON_SERVICES_TEST_IMAGE:-$BASELINE_PYTHON_IMAGE}"

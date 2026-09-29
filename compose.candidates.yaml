@@ -10,10 +10,10 @@ services:
 
   internal:
     build:
-      context: ../shared-resources/.worktrees/catalog-deps-on-gate/internal_apis
+      context: ../shared-resources/.worktrees/internal-api-gate-focused/internal_apis
       dockerfile: ../../../../dev-local/dockerfiles/Dockerfile.poetry
     volumes:
-      - ../shared-resources/.worktrees/catalog-deps-on-gate/internal_apis:/internal_apis
+      - ../shared-resources/.worktrees/internal-api-gate-focused/internal_apis:/internal_apis
 
   api:
     build:
