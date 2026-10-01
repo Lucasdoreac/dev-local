@@ -28,7 +28,8 @@ completo (conferir, editar, validar, publicar, lane nova, pós-merge) está em
 `.claude/skills/pr-lane/SKILL.md`, ligado em `~/LABTECH/.claude/skills/pr-lane`.
 `notebook-sync.py` também lê `lanes.json`: uma fonte do caderno por lane (em
 repo com várias lanes, só as pastas de cada serviço), e o hook de push
-sincroniza apenas a lane cuja branch do fork recebeu o commit.
+sincroniza apenas a lane cuja branch do fork recebeu o commit. Lane com `"notebook": false`
+(por exemplo, só o Dockerfile sobre outra lane) não vira fonte do caderno.
 
 ## Compose local
 

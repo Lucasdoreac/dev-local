@@ -42,7 +42,9 @@ LANES_FILE = LAB / "dev-local" / "lanes.json"
 
 def lane_sources(lanes):
     """Uma fonte por lane. Com várias lanes no mesmo repo, cada uma traz só as
-    pastas dos seus serviços (campo compose), a raiz e .github/."""
+    pastas dos seus serviços (campo compose), a raiz e .github/. Lane com
+    "notebook": false (ex.: só Dockerfile sobre outra lane) fica de fora."""
+    lanes = [lane for lane in lanes if lane.get("notebook", True)]
     per_repo = {}
     for lane in lanes:
         per_repo.setdefault(lane["repo"], []).append(lane)

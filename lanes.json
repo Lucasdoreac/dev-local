@@ -15,6 +15,18 @@
       "compose": {"api": "."}
     },
     {
+      "id": "api-runtime",
+      "repo": "python-services",
+      "pr": 72,
+      "base": "main",
+      "parents": ["api"],
+      "worktree": "python-services/.worktrees/api-runtime-build-tools",
+      "local_branch": "chore/api-runtime-build-tools",
+      "fork_branch": "chore/api-runtime-build-tools",
+      "compose": {},
+      "notebook": false
+    },
+    {
       "id": "catalog",
       "repo": "shared-resources",
       "pr": 30,
