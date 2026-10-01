@@ -4,7 +4,7 @@
 #   ./smoke.sh                                               # prova: reserva + aprovação
 #   docker compose down                                      # derruba (volumes ficam)
 #
-# Proposta de casa definitiva: repo crispy-octo-cluster (infra do lab).
+# Este diretório é o harness local integrado do produto Reservas.
 # Credenciais locais geradas em minio.env / internal.env (fora de qualquer repo).
 # Em FLASK_ENV=development nenhum email sai: o python-services devolve o HTML.
 #
@@ -24,8 +24,10 @@ name: labtech-dev
 
 services:
   mongo:
+    platform: ${DOCKER_PLATFORM:-linux/amd64}
     # 8.0: linha de suporte longo (a do Atlas). Subiu do 7 no mesmo volume (FCV 7.0 → 8.0).
-    image: mongo:8.0
+    # amd64 child of the official 8.0 multi-platform index.
+    image: mongo:8.0@sha256:a70d9916fd916ddfdf6fd8552784c599eb26f88c59951c7bcdc50abd158e8be7
     restart: unless-stopped
     volumes: [mongo_data:/data/db]
     healthcheck:
@@ -34,61 +36,57 @@ services:
       retries: 20
 
   redis:
-    image: redis:8.2  # linha de suporte longo do Redis 8 (EOL 2030)
+    platform: ${DOCKER_PLATFORM:-linux/amd64}
+    # amd64 child of the official redis:8.10.1 multi-platform index.
+    image: redis:8.10.1@sha256:5edb5f1591cd35076057573171f40e0439ec7fbbb38e04d56c0efae810d99d47  # latest stable patch with security fixes (2026-08)
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     volumes: [redis_data:/data]
 
   # Nome SEM "_": o MinIO recusa hostname com underscore (InvalidRequest).
   minio:
-    # Docker Hub recusou minio/minio (23/09/2026). Tag fixa = a última imagem publicada:
-    # o repositório minio/minio foi ARQUIVADO (última release 15/10/2025, sem imagem nova).
-    # Trocar por outro S3 compatível é decisão à parte (plano de atualizações, P3b).
-    image: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e  # RELEASE.2025-09-07T16-13-09Z; a tag já responde 401 no quay.io
+    platform: ${DOCKER_PLATFORM:-linux/amd64}
+    # A Community Edition virou source-only; construir do commit oficial de segurança,
+    # sem depender do registry Quay que retorna 401 para esta conta.
+    build:
+      context: .
+      dockerfile: dockerfiles/Dockerfile.minio-source
+      args:
+        MINIO_RELEASE: RELEASE.2025-10-15T17-29-55Z
+        MINIO_COMMIT: 9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
+    image: labtech-dev-minio:RELEASE.2025-10-15T17-29-55Z
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     env_file: [minio.env]
     ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
     volumes: [minio_data:/data]
 
-  # Catálogo real (base `scripts` do backup do repo scripts) + 1 coordenador
-  # SINTÉTICO para o fluxo de aprovação achar destinatário (o catálogo não tem
-  # coordenador por curso — backlog DATA-03). A base transacional real do mesmo
-  # backup NÃO é carregada. Roda a cada `up` e recria só as coleções de catálogo.
+  # Seed de desenvolvimento executado somente se todas as coleções de catálogo
+  # estiverem vazias; `docker compose up` nunca pode sobrescrever dados existentes.
   seed:
-    image: mongo:8.0  # mesmas ferramentas (mongorestore) do serviço mongo
+    platform: ${DOCKER_PLATFORM:-linux/amd64}
+    image: mongo:8.0@sha256:a70d9916fd916ddfdf6fd8552784c599eb26f88c59951c7bcdc50abd158e8be7  # mesmas ferramentas (mongorestore) do serviço mongo
     depends_on: {mongo: {condition: service_healthy}}
     volumes:
       - ../scripts/new_collection/labtech.backup.tar.gz:/seed/labtech.backup.tar.gz:ro
-    command:
-      - bash
-      - -c
-      - |
-        set -euo pipefail
-        t=$$(mktemp -d)
-        tar -xzf /seed/labtech.backup.tar.gz -C "$$t" mongo-backups/scripts
-        mongorestore --host mongo --quiet --drop --db rooms-reservation-app "$$t/mongo-backups/scripts/scripts"
-        mongosh --host mongo --quiet rooms-reservation-app --eval '
-          db.teachers.updateOne({_id:"coord-sintetico-enf"},
-            {$$set:{PROFESSOR:"Coordenação Sintética ENF (teste local)", COD_CURS:[31], email:"coordenacao-sintetica@udf.edu.br"}}, {upsert:true});
-          db.courses.updateOne({_id:31}, {$$set:{COORDINATOR:"coord-sintetico-enf"}});
-          print("seed ok: cursos", db.courses.countDocuments(), "salas", db.rooms.countDocuments())'
+      - ./seed-catalog.sh:/dev-local/seed-catalog.sh:ro
+    command: ["bash", "/dev-local/seed-catalog.sh"]
 
-  # auth/internal/api: imagens construídas a partir do Dockerfile de cada
-  # serviço (Poetry + Gunicorn) em vez do antigo `python:3.12-slim` +
-  # `pip install` ad-hoc a cada `up` (sem lockfile, sem imagem de verdade).
-  # auth_service e internal_apis vieram do PR #25 (shared-resources,
-  # "24-dockerizar-as-apis-no-shared-resources", aberto, nunca mergeado);
-  # python-services não tinha Dockerfile em lugar nenhum, foi escrito agora
-  # seguindo o mesmo padrão. O volume por cima da imagem mantém live-edit:
-  # dependências já instaladas no build, código vem do host; um
-  # `docker compose restart <serviço>` pega mudança de código sem rebuild.
+  # A pilha local usa Dockerfile.poetry do harness: dependências pelo lock e
+  # worktrees montadas em runtime para live-edit. Dockerfiles de API/Auth/Catálogo
+  # empacotam imagens em seus workflows; Dockerfile.test-python é o runner isolado.
+  # São imagens com ciclos diferentes, não cópias da configuração de dependências.
   auth:
-    build: {context: ../shared-resources/auth_service}
+    platform: ${DOCKER_PLATFORM:-linux/amd64}
+    build:
+      context: ../shared-resources/auth_service
+      dockerfile: ../../dev-local/dockerfiles/Dockerfile.poetry
+      args: {APP_DIR: /auth_service}
     restart: unless-stopped
     # redis: cache do login (auth) e do catálogo (internal); sem ele as rotas dão 500.
     depends_on: {seed: {condition: service_completed_successfully}, redis: {condition: service_started}}
-    volumes: [../shared-resources/auth_service:/auth_service]
+    volumes:
+      - ../shared-resources/auth_service:/auth_service
     environment:
       MONGO_URI: mongodb://mongo:27017
       MONGO_DATABASE: rooms-reservation-app
@@ -98,9 +96,14 @@ services:
       REDIS_URL: redis://redis:6379/0
       REACT_APP: http://127.0.0.1:3000
     ports: ["127.0.0.1:5050:5050"]
+    command: poetry run gunicorn -w 2 -b 0.0.0.0:5050 main:auth_app
 
   internal:
-    build: {context: ../shared-resources/internal_apis}
+    platform: ${DOCKER_PLATFORM:-linux/amd64}
+    build:
+      context: ../shared-resources/internal_apis
+      dockerfile: ../../dev-local/dockerfiles/Dockerfile.poetry
+      args: {APP_DIR: /internal_apis}
     restart: unless-stopped
     # redis: cache do login (auth) e do catálogo (internal); sem ele as rotas dão 500.
     depends_on: {seed: {condition: service_completed_successfully}, redis: {condition: service_started}}
@@ -111,12 +114,18 @@ services:
       MONGO_DATABASE: rooms-reservation-app
       REDIS_URL: redis://redis:6379/0
     ports: ["127.0.0.1:5081:5081"]
+    command: sh -c "PYTHONPATH=src poetry run gunicorn -w 2 -b 0.0.0.0:5081 main:internal_apis"
 
   api:
-    build: {context: ../python-services}
+    platform: ${DOCKER_PLATFORM:-linux/amd64}
+    build:
+      context: ../python-services
+      dockerfile: ../dev-local/dockerfiles/Dockerfile.poetry
+      args: {APP_DIR: /python-services}
     restart: unless-stopped
     depends_on: [auth, internal, minio]
-    volumes: [../python-services:/python-services]
+    volumes:
+      - ../python-services:/python-services
     # internal.env traz INTERNAL_API_KEY: a chave que o api manda ao catálogo
     env_file: [minio.env, internal.env]
     environment:
@@ -133,8 +142,6 @@ services:
       MINIO_URL: http://minio:9000
       # link "editar o evento" no e-mail de pedido de mudança (mesma origem do REACT_APP do auth)
       FRONTEND_URL: http://127.0.0.1:3000
-      # tela de ofertas: só este e-mail sintético (em produção: quem a UDF indicar)
-      OFFER_ADMIN_EMAILS: ofertas.dev@udf.edu.br
     ports: ["5000:5000"]
     # O client MinIO do python-services espera MINIO_ACCESS_KEY/SECRET_KEY;
     # minio.env só define MINIO_ROOT_USER/PASSWORD (o que o container do
@@ -144,19 +151,22 @@ services:
       PYTHONPATH=src poetry run gunicorn -w 2 -b 0.0.0.0:5000 main:reservation_app"
 
   # Frontends com node_modules próprio (volume): o do Mac tem binário darwin.
-  # `npm ci` não reescreve o lockfile do repo.
+  # React Router Framework em modo SPA; nenhuma renderização SSR em runtime.
   reservas:
-    image: node:24  # = interfaces-usuario/reservas/.nvmrc
+    platform: ${DOCKER_PLATFORM:-linux/amd64}
+    build:
+      context: .
+      dockerfile: Dockerfile.reservas
+    image: labtech-dev-reservas-web:26.10.0
     restart: unless-stopped
     depends_on: [api]
     working_dir: /app
     volumes: [../interfaces-usuario/reservas:/app, reservas_node_modules:/app/node_modules]
     environment:
-      REACT_APP_API_BASE_URL: http://localhost:5000
-      # Vite (vite.config.js: porta 3000, host 0.0.0.0) lê esta para usar polling na pasta montada.
-      WATCHPACK_POLLING: "true"
+      VITE_API_BASE_URL: http://localhost:5000
+      CHOKIDAR_USEPOLLING: "true"
     ports: ["127.0.0.1:3000:3000"]
-    command: sh -c "(npm ci --no-audit --no-fund --loglevel=error || npm ci --no-audit --no-fund --loglevel=error) && npm start"
+    command: sh -c "yarn install --frozen-lockfile --non-interactive && yarn start"
 
   # Alocação de Professores (repo teachers-allocation): app à parte do Reservas,
   # com Postgres próprio, login próprio e ids próprios (ver
@@ -164,6 +174,7 @@ services:
   # frontend usa REACT_APP_API_URL; antes a URL era fixa em localhost:5000, que
   # é a API do Reservas). Dados 100% sintéticos (backend/seed_dev.py).
   alocacao-db:
+    profiles: [alocacao]
     # Postgres 18: a imagem grava em /var/lib/postgresql/18/docker, então o volume
     # vai em /var/lib/postgresql (em .../data os dados ficariam fora do volume).
     # Migrado do 17 com pg-upgrade.sh; volumes antigos (13, 17) ficam até o dono decidir.
@@ -180,6 +191,7 @@ services:
       retries: 20
 
   alocacao-api:
+    profiles: [alocacao]
     build: {context: ../teachers-allocation/backend}
     image: labtech-dev-alocacao-api
     restart: unless-stopped
@@ -192,6 +204,7 @@ services:
     ports: ["127.0.0.1:5002:5000"]
 
   alocacao-seed:
+    profiles: [alocacao]
     build: {context: ../teachers-allocation/backend}
     image: labtech-dev-alocacao-api
     depends_on: {alocacao-api: {condition: service_started}, alocacao-db: {condition: service_healthy}}
@@ -204,6 +217,7 @@ services:
     restart: "no"
 
   alocacao-web:
+    profiles: [alocacao]
     image: node:24  # era 22 (só manutenção desde 10/2025)
     restart: unless-stopped
     depends_on: [alocacao-api]

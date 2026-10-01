@@ -12,8 +12,13 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 LAB=$(cd .. && pwd)
+CATALOG_ONLY="${1:-}"
+if [ -n "$CATALOG_ONLY" ] && [ "$CATALOG_ONLY" != "--catalog-only" ]; then
+  echo "Uso: $0 [--catalog-only]" >&2
+  exit 2
+fi
 OUT="$LAB/reports/evidence/$(date +%F)/smoke-$(date +%H%M)"
-mkdir -p "$OUT"
+if [ "$CATALOG_ONLY" != "--catalog-only" ]; then mkdir -p "$OUT"; fi
 fail() { echo "=== SMOKE: FAIL — $1 ==="; exit 1; }
 mongo() { docker compose exec -T mongo mongosh --quiet rooms-reservation-app --eval "$1"; }
 
@@ -38,8 +43,15 @@ echo "[2/4] catálogo"
 K=$(docker compose exec -T internal sh -c 'echo "$API_KEY_LIST"' | cut -d, -f1 | tr -d '\r')
 cursos=$(curl -s -L -H "x-api-key: $K" http://127.0.0.1:5081/restapi/courses/ | python3 -c "import sys,json;print(json.load(sys.stdin)['pagination']['total_count'])")
 salas=$(curl -s -L -H "x-api-key: $K" http://127.0.0.1:5081/restapi/rooms/ | python3 -c "import sys,json;print(json.load(sys.stdin)['pagination']['total_count'])")
-echo "      cursos=$cursos salas=$salas"
-[ "$cursos" = 42 ] && [ "$salas" = 151 ] || fail "catálogo incompleto (cursos=$cursos salas=$salas; esperado 42/151)"
+ofertas_2026_2=$(curl -s -L -H "x-api-key: $K" 'http://127.0.0.1:5081/restapi/offers/?year=2026&semester=2&page=1&pagesize=1' | python3 -c "import sys,json;print(json.load(sys.stdin)['pagination']['total_count'])")
+ofertas_2024_2=$(curl -s -L -H "x-api-key: $K" 'http://127.0.0.1:5081/restapi/offers/?year=2024&semester=2&page=1&pagesize=1' | python3 -c "import sys,json;print(json.load(sys.stdin)['pagination']['total_count'])")
+echo "      cursos=$cursos salas=$salas ofertas_2026/2=$ofertas_2026_2 ofertas_2024/2=$ofertas_2024_2"
+[ "$cursos" = 42 ] && [ "$salas" = 190 ] && [ "$ofertas_2026_2" = 1584 ] && [ "$ofertas_2024_2" = 1858 ] || \
+  fail "catálogo/ofertas inesperados (cursos=$cursos salas=$salas 2026/2=$ofertas_2026_2 2024/2=$ofertas_2024_2; esperado 42/190/1584/1858)"
+if [ "$CATALOG_ONLY" = "--catalog-only" ]; then
+  echo "=== SMOKE: PASS — catálogo 42/190; ofertas 2026/2=1584 e 2024/2=1858 (somente leitura) ==="
+  exit 0
+fi
 # Cache de 12h do internal_apis: garante que ele não sirva estado anterior ao seed.
 docker compose exec -T redis redis-cli FLUSHALL >/dev/null
 
@@ -66,4 +78,4 @@ FINAL=$(mongo "print(db.events.findOne({_id:ObjectId('$EID')}).status)")
 git -C "$LAB/python-services" checkout -- PDFs/evento.pdf PDFs/evento.typ 2>/dev/null || true
 
 [ "$FINAL" = approved_by_reitoria ] || fail "evento $EID terminou '$FINAL' (esperado: approved_by_reitoria)"
-echo "=== SMOKE: PASS — catálogo 42/151, reserva $EID aprovada pela Reitoria; prints em ${OUT#$LAB/} ==="
+echo "=== SMOKE: PASS — catálogo 42/190, ofertas 2026/2=1584, reserva $EID aprovada pela Reitoria; prints em ${OUT#$LAB/} ==="

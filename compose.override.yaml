@@ -1,0 +1,31 @@
+# Worktree overlay for the clean local PR heads (#68 API, #31 Auth, #30 Catalog, #41 web) and staging-only auth policy.
+# Use together with compose.yaml; environment changes here apply only to local dev.
+services:
+  auth:
+    build:
+      context: ${AUTH_SERVICE_DIR:-../shared-resources/.worktrees/auth-email-logo/auth_service}
+      dockerfile: ../../../../dev-local/dockerfiles/Dockerfile.poetry
+    volumes:
+      - ${AUTH_SERVICE_DIR:-../shared-resources/.worktrees/auth-email-logo/auth_service}:/auth_service
+    environment:
+      AUTH_EMAIL_ALLOWLIST: ${DEV_AUTH_EMAIL_ALLOWLIST:-}
+
+  internal:
+    build:
+      context: ${INTERNAL_APIS_DIR:-../shared-resources/.worktrees/pr30-without-weekdays/internal_apis}
+      dockerfile: ../../../../dev-local/dockerfiles/Dockerfile.poetry
+    volumes:
+      - ${INTERNAL_APIS_DIR:-../shared-resources/.worktrees/pr30-without-weekdays/internal_apis}:/internal_apis
+
+  api:
+    build:
+      context: ${PYTHON_SERVICES_DIR:-../python-services/.worktrees/approval-security-hardening}
+      dockerfile: ../../../dev-local/dockerfiles/Dockerfile.poetry
+    volumes:
+      - ${PYTHON_SERVICES_DIR:-../python-services/.worktrees/approval-security-hardening}:/python-services
+
+  reservas:
+    volumes:
+      - ../.worktrees/web-email-logo/reservas:/app
+    environment:
+      VITE_AUTH_EMAIL_ALLOWLIST: ${DEV_VITE_AUTH_EMAIL_ALLOWLIST:-}
