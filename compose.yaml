@@ -4,7 +4,7 @@
 #   ./smoke.sh                                               # prova: reserva + aprovação
 #   docker compose down                                      # derruba (volumes ficam)
 #
-# Proposta de casa definitiva: repo crispy-octo-cluster (infra do lab).
+# Este diretório é o harness local integrado do produto Reservas.
 # Credenciais locais geradas em minio.env / internal.env (fora de qualquer repo).
 # Em FLASK_ENV=development nenhum email sai: o python-services devolve o HTML.
 #
@@ -24,8 +24,10 @@ name: labtech-dev
 
 services:
   mongo:
+    platform: ${DOCKER_PLATFORM:-linux/amd64}
     # 8.0: linha de suporte longo (a do Atlas). Subiu do 7 no mesmo volume (FCV 7.0 → 8.0).
-    image: mongo:8.0
+    # amd64 child of the official 8.0 multi-platform index.
+    image: mongo:8.0@sha256:a70d9916fd916ddfdf6fd8552784c599eb26f88c59951c7bcdc50abd158e8be7
     restart: unless-stopped
     volumes: [mongo_data:/data/db]
     healthcheck:
@@ -34,17 +36,25 @@ services:
       retries: 20
 
   redis:
-    image: redis:8.10.1  # latest stable patch with security fixes (2026-08)
+    platform: ${DOCKER_PLATFORM:-linux/amd64}
+    # amd64 child of the official redis:8.10.1 multi-platform index.
+    image: redis:8.10.1@sha256:5edb5f1591cd35076057573171f40e0439ec7fbbb38e04d56c0efae810d99d47  # latest stable patch with security fixes (2026-08)
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     volumes: [redis_data:/data]
 
   # Nome SEM "_": o MinIO recusa hostname com underscore (InvalidRequest).
   minio:
-    # Docker Hub recusou minio/minio (23/09/2026). Tag fixa = a última imagem publicada:
-    # o repositório minio/minio foi ARQUIVADO (última release 15/10/2025, sem imagem nova).
-    # Trocar por outro S3 compatível é decisão à parte (plano de atualizações, P3b).
-    image: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e  # RELEASE.2025-09-07T16-13-09Z; a tag já responde 401 no quay.io
+    platform: ${DOCKER_PLATFORM:-linux/amd64}
+    # A Community Edition virou source-only; construir do commit oficial de segurança,
+    # sem depender do registry Quay que retorna 401 para esta conta.
+    build:
+      context: .
+      dockerfile: dockerfiles/Dockerfile.minio-source
+      args:
+        MINIO_RELEASE: RELEASE.2025-10-15T17-29-55Z
+        MINIO_COMMIT: 9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
+    image: labtech-dev-minio:RELEASE.2025-10-15T17-29-55Z
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     env_file: [minio.env]
@@ -54,33 +64,29 @@ services:
   # Seed de desenvolvimento executado somente se todas as coleções de catálogo
   # estiverem vazias; `docker compose up` nunca pode sobrescrever dados existentes.
   seed:
-    image: mongo:8.0  # mesmas ferramentas (mongorestore) do serviço mongo
+    platform: ${DOCKER_PLATFORM:-linux/amd64}
+    image: mongo:8.0@sha256:a70d9916fd916ddfdf6fd8552784c599eb26f88c59951c7bcdc50abd158e8be7  # mesmas ferramentas (mongorestore) do serviço mongo
     depends_on: {mongo: {condition: service_healthy}}
     volumes:
       - ../scripts/new_collection/labtech.backup.tar.gz:/seed/labtech.backup.tar.gz:ro
       - ./seed-catalog.sh:/dev-local/seed-catalog.sh:ro
     command: ["bash", "/dev-local/seed-catalog.sh"]
 
-  # auth/internal/api: imagens construídas a partir do Dockerfile de cada
-  # serviço (Poetry + Gunicorn) em vez do antigo `python:3.12-slim` +
-  # `pip install` ad-hoc a cada `up` (sem lockfile, sem imagem de verdade).
-  # auth_service e internal_apis vieram do PR #25 (shared-resources,
-  # "24-dockerizar-as-apis-no-shared-resources", aberto, nunca mergeado);
-  # python-services não tinha Dockerfile em lugar nenhum, foi escrito agora
-  # seguindo o mesmo padrão. O volume por cima da imagem mantém live-edit:
-  # dependências já instaladas no build, código vem do host; um
-  # `docker compose restart <serviço>` pega mudança de código sem rebuild.
+  # A pilha local usa Dockerfile.poetry do harness: dependências pelo lock e
+  # worktrees montadas em runtime para live-edit. Dockerfiles de API/Auth/Catálogo
+  # empacotam imagens em seus workflows; Dockerfile.test-python é o runner isolado.
+  # São imagens com ciclos diferentes, não cópias da configuração de dependências.
   auth:
+    platform: ${DOCKER_PLATFORM:-linux/amd64}
     build:
       context: ../shared-resources/auth_service
-      dockerfile: ../dev-local/dockerfiles/Dockerfile.poetry
+      dockerfile: ../../dev-local/dockerfiles/Dockerfile.poetry
       args: {APP_DIR: /auth_service}
     restart: unless-stopped
     # redis: cache do login (auth) e do catálogo (internal); sem ele as rotas dão 500.
     depends_on: {seed: {condition: service_completed_successfully}, redis: {condition: service_started}}
     volumes:
       - ../shared-resources/auth_service:/auth_service
-      - ./local_auth.py:/dev-local/local_auth.py:ro
     environment:
       MONGO_URI: mongodb://mongo:27017
       MONGO_DATABASE: rooms-reservation-app
@@ -90,12 +96,13 @@ services:
       REDIS_URL: redis://redis:6379/0
       REACT_APP: http://127.0.0.1:3000
     ports: ["127.0.0.1:5050:5050"]
-    command: sh -c "PYTHONPATH=/dev-local poetry run gunicorn -w 2 -b 0.0.0.0:5050 local_auth:app"
+    command: poetry run gunicorn -w 2 -b 0.0.0.0:5050 main:auth_app
 
   internal:
+    platform: ${DOCKER_PLATFORM:-linux/amd64}
     build:
       context: ../shared-resources/internal_apis
-      dockerfile: ../dev-local/dockerfiles/Dockerfile.poetry
+      dockerfile: ../../dev-local/dockerfiles/Dockerfile.poetry
       args: {APP_DIR: /internal_apis}
     restart: unless-stopped
     # redis: cache do login (auth) e do catálogo (internal); sem ele as rotas dão 500.
@@ -110,6 +117,7 @@ services:
     command: sh -c "PYTHONPATH=src poetry run gunicorn -w 2 -b 0.0.0.0:5081 main:internal_apis"
 
   api:
+    platform: ${DOCKER_PLATFORM:-linux/amd64}
     build:
       context: ../python-services
       dockerfile: ../dev-local/dockerfiles/Dockerfile.poetry
@@ -118,7 +126,6 @@ services:
     depends_on: [auth, internal, minio]
     volumes:
       - ../python-services:/python-services
-      - ./local_api.py:/dev-local/local_api.py:ro
     # internal.env traz INTERNAL_API_KEY: a chave que o api manda ao catálogo
     env_file: [minio.env, internal.env]
     environment:
@@ -135,19 +142,18 @@ services:
       MINIO_URL: http://minio:9000
       # link "editar o evento" no e-mail de pedido de mudança (mesma origem do REACT_APP do auth)
       FRONTEND_URL: http://127.0.0.1:3000
-      # tela de ofertas: só este e-mail sintético (em produção: quem a UDF indicar)
-      OFFER_ADMIN_EMAILS: ofertas.dev@udf.edu.br
     ports: ["5000:5000"]
     # O client MinIO do python-services espera MINIO_ACCESS_KEY/SECRET_KEY;
     # minio.env só define MINIO_ROOT_USER/PASSWORD (o que o container do
     # MinIO usa). Remapeia antes de subir o gunicorn do Dockerfile.
     command: >-
       sh -c "export MINIO_ACCESS_KEY=$$MINIO_ROOT_USER MINIO_SECRET_KEY=$$MINIO_ROOT_PASSWORD &&
-      PYTHONPATH=src:/dev-local poetry run gunicorn -w 2 -b 0.0.0.0:5000 local_api:app"
+      PYTHONPATH=src poetry run gunicorn -w 2 -b 0.0.0.0:5000 main:reservation_app"
 
   # Frontends com node_modules próprio (volume): o do Mac tem binário darwin.
   # React Router Framework em modo SPA; nenhuma renderização SSR em runtime.
   reservas:
+    platform: ${DOCKER_PLATFORM:-linux/amd64}
     build:
       context: .
       dockerfile: Dockerfile.reservas

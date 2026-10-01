@@ -1,11 +1,14 @@
-FROM python:3.14.7-slim
+# Pin the official amd64 child manifest so a cached arm64 tag cannot be reused.
+FROM python:3.14.7-slim@sha256:7bf6c3111fe094f8ee1a1cbcdc63c4cfb345b0e3df42d5aa9a90b3b4b022ab6d
 
 ARG POETRY_VERSION=2.4.1
+ARG DEBIAN_FRONTEND=noninteractive
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Older locked wheels may not publish a CPython 3.14 build. Keep test-only
 # native build tools in the disposable runner image, not in application images.
 RUN apt-get update \
+    && apt-get upgrade --yes --no-install-recommends \
     && apt-get install --no-install-recommends --yes \
         build-essential \
         libffi-dev \

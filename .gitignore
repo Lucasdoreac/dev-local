@@ -3,5 +3,8 @@
 *.env
 .DS_Store
 logs/
+__pycache__/
+*.py[cod]
 # Dumps de bancos (dados): ficam só na máquina.
 backups/
+seed-atlas.archive.gz

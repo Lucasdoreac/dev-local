@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Executa os gates CI dos quatro repos da etapa em containers descartáveis.
+# Executa os gates dos quatro repos em Docker Linux; o Web roda no container
+# da pilha integrada e os demais runners são descartáveis.
 # Os diretórios padrão apontam para os heads locais dos PRs; cada um pode ser
 # substituído por uma variável de ambiente para verificar outro checkout.
-# O código é montado read-only, copiado para o container e nunca escreve no host.
+# As fontes Python/E2E vão para containers descartáveis; o Web usa o mount
+# Compose e grava somente o build de produção ignorado pelo Git.
 #
-#   ./run-tests.sh                 # API, catálogo, Auth e checks do framework
-#   ./run-tests.sh python|internal|auth|framework|e2e|alocacao
+#   ./run-tests.sh                 # API, catálogo, Auth, Web e framework
+#   ./run-tests.sh python|internal|auth|frontend|framework|e2e
 #
 # O alvo framework reproduz o workflow isolado (compile/import/Behave dry-run).
 # O alvo e2e usa runner e Chrome descartáveis em Docker contra a pilha Compose.
@@ -13,21 +15,23 @@ set -uo pipefail
 cd "$(dirname "$0")"
 LAB=$(cd .. && pwd)
 
-PYTHON_SOURCE="${PYTHON_SERVICES_DIR:-$LAB/python-services/.worktrees/python-logger-ci-focused}"
-INTERNAL_SOURCE="${INTERNAL_APIS_DIR:-$LAB/shared-resources/.worktrees/internal-api-gate-focused/internal_apis}"
-AUTH_SOURCE="${AUTH_SERVICE_DIR:-$LAB/shared-resources/.worktrees/auth-dependencies-focused/auth_service}"
-FRAMEWORK_SOURCE="${E2E_FRAMEWORK_DIR:-$LAB/.worktrees/e2e-pr-locator-fix}"
-LATEST_PYTHON_IMAGE="labtech-dev-runner-python:3.14.7"
+PYTHON_SOURCE="${PYTHON_SERVICES_DIR:-}"
+INTERNAL_SOURCE="${INTERNAL_APIS_DIR:-}"
+AUTH_SOURCE="${AUTH_SERVICE_DIR:-}"
+FRAMEWORK_SOURCE="${E2E_FRAMEWORK_DIR:-$LAB/.worktrees/e2e-pr3-without-offers}"
+DOCKER_PLATFORM="${DOCKER_PLATFORM:-linux/amd64}"
+LATEST_PYTHON_IMAGE="labtech-dev-runner-python:3.14.7-${DOCKER_PLATFORM##*/}"
 BASELINE_PYTHON_IMAGE="${BASELINE_PYTHON_TEST_IMAGE:-$LATEST_PYTHON_IMAGE}"
 PYTHON_SERVICES_TEST_IMAGE="${PYTHON_SERVICES_TEST_IMAGE:-$BASELINE_PYTHON_IMAGE}"
 INTERNAL_APIS_TEST_IMAGE="${INTERNAL_APIS_TEST_IMAGE:-$BASELINE_PYTHON_IMAGE}"
 AUTH_SERVICE_TEST_IMAGE="${AUTH_SERVICE_TEST_IMAGE:-$LATEST_PYTHON_IMAGE}"
 PYTHON_TEST_DOCKERFILE="$LAB/dev-local/dockerfiles/Dockerfile.test-python"
-CHROME_IMAGE="selenium/standalone-chrome:4.49.0-20260909"
+CHROME_IMAGE="selenium/standalone-chrome:4.49.0-20260909@sha256:88dacdd42d93ab738bed045129376b2f965117c5f2e4710693e54695d531380d"
 POETRY_VERSION="2.4.1"
 DEV_NETWORK="${DEV_TEST_NETWORK:-labtech-dev_default}"
 LATEST_PYTHON_IMAGE_READY=0
-TEST_CACHE_ROOT="${LABTECH_TEST_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/labtech-dev-local-tests}"
+PLATFORM_CACHE_KEY="${DOCKER_PLATFORM//\//-}"
+TEST_CACHE_ROOT="${LABTECH_TEST_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/labtech-dev-local-tests}/$PLATFORM_CACHE_KEY"
 POETRY_CACHE_HOST="$TEST_CACHE_ROOT/pypoetry"
 PIP_CACHE_HOST="$TEST_CACHE_ROOT/pip"
 mkdir -p "$POETRY_CACHE_HOST" "$PIP_CACHE_HOST" || {
@@ -42,6 +46,28 @@ PYTHON_CACHE_ENVS=(
   -e POETRY_CACHE_DIR=/root/.cache/pypoetry
   -e PIP_CACHE_DIR=/root/.cache/pip
 )
+
+if [[ "$DOCKER_PLATFORM" != "linux/amd64" ]]; then
+  echo "[runner] DOCKER_PLATFORM deve ser linux/amd64; imagens locais estão fixadas nesse alvo" >&2
+  exit 2
+fi
+
+# Compose is the canonical selection for the three integrated Python services.
+# The runner reads the resolved build contexts, then exports them back so any
+# Compose command later in this script uses exactly the same source trees.
+COMPOSE_CONFIG="$(docker compose config --format json)" || {
+  echo "[runner] não foi possível resolver as fontes com docker compose config" >&2
+  exit 1
+}
+compose_context() {
+  python3 -c 'import json,sys; print(json.load(sys.stdin)["services"][sys.argv[1]]["build"]["context"])' "$1" <<<"$COMPOSE_CONFIG"
+}
+PYTHON_SOURCE="${PYTHON_SOURCE:-$(compose_context api)}"
+INTERNAL_SOURCE="${INTERNAL_SOURCE:-$(compose_context internal)}"
+AUTH_SOURCE="${AUTH_SOURCE:-$(compose_context auth)}"
+export PYTHON_SERVICES_DIR="$PYTHON_SOURCE"
+export INTERNAL_APIS_DIR="$INTERNAL_SOURCE"
+export AUTH_SERVICE_DIR="$AUTH_SOURCE"
 PROXY_ARGS=(
   -e "HTTP_PROXY=${DEV_TEST_PROXY:-}"
   -e "HTTPS_PROXY=${DEV_TEST_PROXY:-}"
@@ -57,10 +83,17 @@ ensure_python_test_image() {
     return 0
   fi
   docker build --quiet \
+    --platform "$DOCKER_PLATFORM" \
     --tag "$LATEST_PYTHON_IMAGE" \
     --build-arg "POETRY_VERSION=$POETRY_VERSION" \
     --file "$PYTHON_TEST_DOCKERFILE" \
     "$(dirname "$PYTHON_TEST_DOCKERFILE")" >/dev/null || return 1
+  local actual_platform
+  actual_platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")" || return 1
+  if [[ "$actual_platform" != "$DOCKER_PLATFORM" ]]; then
+    echo "[runner] imagem $image está em $actual_platform; esperado $DOCKER_PLATFORM" >&2
+    return 1
+  fi
   LATEST_PYTHON_IMAGE_READY=1
 }
 
@@ -85,10 +118,12 @@ run_poetry_suite() {
     return 1
   }
 
-  docker run --rm --network "$network" "${PROXY_ARGS[@]}" \
+  docker run --platform "$DOCKER_PLATFORM" --rm --network "$network" "${PROXY_ARGS[@]}" \
     "${PYTHON_CACHE_ARGS[@]}" "${PYTHON_CACHE_ENVS[@]}" \
     -v "$source:/source:ro" \
     -e TEST_COMMAND="$test_command" \
+    -e MONGO_URI=mongodb://localhost:27017 \
+    -e MONGO_DATABASE=labtech_test \
     -e REDIS_URL="${REDIS_URL:-}" \
     "$image" sh -ec '
       mkdir -p /workspace
@@ -121,8 +156,9 @@ start_isolated_redis() {
   (
     cleanup_redis() { docker stop "$redis_name" >/dev/null 2>&1 || true; }
     trap cleanup_redis EXIT
-    docker run -d --rm --name "$redis_name" --network "$DEV_NETWORK" \
-      redis:8.10.1 redis-server --save "" --appendonly no >/dev/null || exit 1
+    docker run --platform "$DOCKER_PLATFORM" -d --rm --name "$redis_name" --network "$DEV_NETWORK" \
+      redis:8.10.1@sha256:5edb5f1591cd35076057573171f40e0439ec7fbbb38e04d56c0efae810d99d47 \
+      redis-server --save "" --appendonly no >/dev/null || exit 1
 
     local ready=0
     for _ in $(seq 1 20); do
@@ -151,16 +187,21 @@ run_auth_service() {
   start_isolated_redis
 }
 
+run_frontend() {
+  echo "[interfaces-usuario/reservas] build SPA + testes na worktree montada"
+  docker compose exec -T reservas sh -ec 'cd /app && yarn build && yarn test'
+}
+
 run_framework_checks() {
   describe_source supreme-test-framework "$FRAMEWORK_SOURCE" || return 1
   ensure_python_test_image "$LATEST_PYTHON_IMAGE" || return 1
-  [[ -f "$FRAMEWORK_SOURCE/requirements.txt" ]] || {
-    echo "[supreme-test-framework] requirements.txt ausente" >&2
+  [[ -f "$FRAMEWORK_SOURCE/pyproject.toml" && -f "$FRAMEWORK_SOURCE/poetry.lock" ]] || {
+    echo "[supreme-test-framework] pyproject.toml ou poetry.lock ausente" >&2
     return 1
   }
 
-  echo "[supreme-test-framework] install de requirements + compile/import/Behave dry-run"
-  docker run --rm --network bridge "${PROXY_ARGS[@]}" \
+  echo "[supreme-test-framework] instalação congelada Poetry + compile/import/Behave dry-run"
+  docker run --platform "$DOCKER_PLATFORM" --rm --network bridge "${PROXY_ARGS[@]}" \
     "${PYTHON_CACHE_ARGS[@]}" "${PYTHON_CACHE_ENVS[@]}" \
     -v "$FRAMEWORK_SOURCE:/source:ro" \
     "$LATEST_PYTHON_IMAGE" sh -ec '
@@ -171,21 +212,22 @@ run_framework_checks() {
         --exclude="*.env" -cf /tmp/source.tar .
       tar -xf /tmp/source.tar -C /workspace
       cd /workspace
-      python -m pip install --disable-pip-version-check -r requirements.txt
+      poetry install --no-interaction --no-ansi --no-root
+      poetry run pip check
       if [ -d tests ]; then
-        python -m unittest discover -s tests -v
+        poetry run python -m unittest discover -s tests -v
       fi
-      python -m compileall -q features page_objects utils
-      python -c "from utils.browser_setup import setup_webdriver; assert callable(setup_webdriver)"
-      behave --dry-run --no-color
+      poetry run python -m compileall -q features page_objects utils
+      poetry run python -c "from utils.browser_setup import setup_webdriver; assert callable(setup_webdriver)"
+      poetry run behave --dry-run --no-color
     '
 }
 
 run_framework_e2e() (
   describe_source supreme-test-framework "$FRAMEWORK_SOURCE" || return 1
   ensure_python_test_image "$LATEST_PYTHON_IMAGE" || return 1
-  [[ -f "$FRAMEWORK_SOURCE/requirements.txt" ]] || {
-    echo "[supreme-test-framework] requirements.txt ausente" >&2
+  [[ -f "$FRAMEWORK_SOURCE/pyproject.toml" && -f "$FRAMEWORK_SOURCE/poetry.lock" ]] || {
+    echo "[supreme-test-framework] pyproject.toml ou poetry.lock ausente" >&2
     return 1
   }
   if ! docker network inspect "$DEV_NETWORK" >/dev/null 2>&1; then
@@ -196,7 +238,13 @@ run_framework_e2e() (
   local chrome_name="labtech-e2e-chrome-$$"
   local web_name="labtech-e2e-web-$$"
   local web_alias="$web_name"
-  local test_email="codex-e2e-$(date +%s)-$$@udf.edu.br"
+  # Isolated synthetic account: checked for pre-existence and removed by
+  # cleanup_e2e before/after the run.
+  local test_email="${E2E_TEST_EMAIL:-e2e-ci@udf.edu.br}"
+  if [[ ! "$test_email" =~ ^[A-Za-z0-9._+-]+@[A-Za-z0-9.-]+$ ]]; then
+    echo "[supreme-test-framework] E2E_TEST_EMAIL deve ser um endereço simples" >&2
+    return 1
+  fi
   local cleanup_status=0
   cleanup_e2e() {
     local test_status=$?
@@ -204,11 +252,23 @@ run_framework_e2e() (
     docker rm -f "$chrome_name" "$web_name" >/dev/null 2>&1 || true
     docker compose exec -T mongo mongosh --quiet rooms-reservation-app --eval \
       "db.authentications.deleteMany({email: '$test_email'}).deletedCount" >/dev/null || cleanup_status=1
-    local key
-    while IFS= read -r key; do
-      [[ -n "$key" ]] || continue
-      docker compose exec -T redis redis-cli DEL "$key" >/dev/null || cleanup_status=1
-    done < <(docker compose exec -T redis redis-cli --scan --pattern "*$test_email*" 2>/dev/null)
+    local redis_keys key remaining_redis_keys attempt
+    # O último pedido autenticado pode terminar no serviço Auth logo depois que
+    # o navegador é encerrado. Revarrer algumas vezes também cobre essa escrita tardia.
+    for attempt in 1 2 3 4 5; do
+      redis_keys="$(docker compose exec -T redis redis-cli --scan --pattern "*$test_email*" 2>/dev/null)"
+      [[ -n "$redis_keys" ]] || break
+      while IFS= read -r key; do
+        [[ -n "$key" ]] || continue
+        docker compose exec -T redis redis-cli DEL "$key" >/dev/null || cleanup_status=1
+      done <<< "$redis_keys"
+      sleep 1
+    done
+    remaining_redis_keys="$(docker compose exec -T redis redis-cli --scan --pattern "*$test_email*" 2>/dev/null | wc -l | tr -d ' ')"
+    if [[ "$remaining_redis_keys" != "0" ]]; then
+      echo "[supreme-test-framework] $remaining_redis_keys chave(s) Redis sintética(s) permaneceram após limpeza" >&2
+      cleanup_status=1
+    fi
     if [[ "$cleanup_status" -ne 0 ]]; then
       echo "[supreme-test-framework] falha ao limpar dados sintéticos ($test_email)" >&2
       test_status=1
@@ -230,7 +290,7 @@ run_framework_e2e() (
     -e VITE_API_BASE_URL=http://api:5000 -e "E2E_HOST=$web_alias" reservas >/dev/null || return 1
   docker network disconnect "$DEV_NETWORK" "$web_name" || return 1
   docker network connect --alias "$web_alias" "$DEV_NETWORK" "$web_name" || return 1
-  docker run -d --name "$chrome_name" --network "$DEV_NETWORK" \
+  docker run --platform "$DOCKER_PLATFORM" -d --name "$chrome_name" --network "$DEV_NETWORK" \
     --network-alias "$chrome_name" --shm-size=1g \
     -e SE_NODE_MAX_SESSIONS=1 \
     -e VIDEO_READY_PORT=9100 \
@@ -242,7 +302,7 @@ run_framework_e2e() (
   trap cleanup_e2e EXIT
 
   echo "[supreme-test-framework] E2E na rede Docker por aliases de serviço; conta sintética isolada"
-  docker run --rm --network "$DEV_NETWORK" "${PROXY_ARGS[@]}" \
+  docker run --platform "$DOCKER_PLATFORM" --rm --network "$DEV_NETWORK" "${PROXY_ARGS[@]}" \
     "${PYTHON_CACHE_ARGS[@]}" "${PYTHON_CACHE_ENVS[@]}" \
     -v "$FRAMEWORK_SOURCE:/source:ro" \
     -e SELENIUM_REMOTE_URL="http://$chrome_name:4444/wd/hub" \
@@ -262,13 +322,14 @@ run_framework_e2e() (
       tar -xf /tmp/source.tar -C /workspace
       cd /workspace
       sed -i "s/e2e-ci@udf.edu.br/$TEST_EMAIL/g" features/login.feature
-      python -m pip install --disable-pip-version-check -r requirements.txt
-      python -m compileall -q features page_objects utils
+      poetry install --no-interaction --no-ansi --no-root
+      poetry run pip check
+      poetry run python -m compileall -q features page_objects utils
       if [ -d tests ]; then
-        python -m compileall -q tests
-        python -m unittest discover -s tests -v
+        poetry run python -m compileall -q tests
+        poetry run python -m unittest discover -s tests -v
       fi
-      python - <<"PY"
+      poetry run python - <<"PY"
 import json, os, time, urllib.request
 targets = {
     "Selenium Grid": (os.environ["SELENIUM_REMOTE_URL"].removesuffix("/wd/hub") + "/wd/hub/status", lambda data: data.get("value", {}).get("ready")),
@@ -287,14 +348,14 @@ for label, (url, ready) in targets.items():
     else:
         raise SystemExit(f"{label} não ficou pronto na rede Docker: {url}")
 PY
-      behave --no-color -D "BASE_URL=$BASE_URL" -D "API_URL=$API_URL"
+      poetry run behave --no-color -D "BASE_URL=$BASE_URL" -D "API_URL=$API_URL"
     '
 )
 
 run_alocacao() {
   echo "[teachers-allocation] build + pytest (fora do alvo padrão desta etapa)"
-  docker build -q -t labtech-alocacao-tests "$LAB/teachers-allocation/backend" >/dev/null || return 1
-  docker run --rm labtech-alocacao-tests \
+  docker build --platform "$DOCKER_PLATFORM" -q -t labtech-alocacao-tests "$LAB/teachers-allocation/backend" >/dev/null || return 1
+  docker run --platform "$DOCKER_PLATFORM" --rm labtech-alocacao-tests \
     sh -c "pip install -q --root-user-action=ignore -r requirements-dev.txt && pytest -v"
 }
 
@@ -302,6 +363,7 @@ case "${1:-all}" in
   python)    run_python_services || status=1 ;;
   internal)  run_internal_apis || status=1 ;;
   auth)      run_auth_service || status=1 ;;
+  frontend)  run_frontend || status=1 ;;
   framework) run_framework_checks || status=1 ;;
   e2e)       run_framework_e2e || status=1 ;;
   alocacao)  run_alocacao || status=1 ;;
@@ -311,6 +373,8 @@ case "${1:-all}" in
     run_internal_apis || status=1
     echo
     run_auth_service || status=1
+    echo
+    run_frontend || status=1
     echo
     run_framework_checks || status=1
     ;;
