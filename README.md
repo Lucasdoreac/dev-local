@@ -3,11 +3,10 @@
 ## Remoto e integração
 
 O remoto atual `origin` é `https://github.com/Lucasdoreac/dev-local` e será a
-referência para a integração na branch `main`. O repositório organizacional
-`LabTechUDF/dev-local` ainda não existe; sua URL está preservada localmente como
-`organization-origin-pending`. Quando a organização criar essa casa, ela volta a
-ser o destino de PR organizacional. Até lá, trate o PR para `origin/main` como o
-gate de revisão; não faça push direto nem merge em `main` sem pedido explícito.
+referência para a integração na branch `main`. Este repositório pessoal é a casa
+remota do harness; não há dependência de um repositório homônimo na organização.
+O PR #1 para `origin/main` é o gate de revisão; não faça push direto nem merge
+em `main` sem pedido explícito.
 
 ## Compose local
 
