@@ -7,7 +7,8 @@ O propósito deste repositório é a pilha integrada local de Reservas. `compose
 e seu override selecionam serviços, plataformas, fontes montadas e volumes.
 `run-tests.sh` deriva API/Auth/Catálogo do Compose resolvido e executa build/test
 Web dentro do serviço que monta a worktree selecionada; mantenha esses vínculos
-ao alterar worktrees ou comandos. Cada aplicação mantém seu próprio manifesto e
+ao alterar worktrees ou comandos; `lanes.json` é o mapa PR ↔ worktree ↔ fork e
+`./check-lanes.py` deve passar antes de editar ou publicar uma lane. Cada aplicação mantém seu próprio manifesto e
 lock. Os Dockerfiles de API/Auth/Catálogo são usados por seus workflows de imagem;
 confira a configuração Render separadamente. Os Dockerfiles deste repositório
 servem à pilha de desenvolvimento e ao runner de testes.
