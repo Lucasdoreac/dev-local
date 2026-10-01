@@ -21,7 +21,9 @@ publica. Mude código de um PR apenas na worktree da sua lane; trabalho novo vir
 uma lane nova empilhada sobre o pai, não uma branch variante.
 `./check-lanes.py` confere se worktree, branch do fork e head do PR têm o mesmo
 SHA e se Compose e `run-tests.sh` usam essas worktrees (`--offline` pula
-GitHub). Upstream local diferente da branch do PR aparece como aviso.
+GitHub). Cada worktree de lane tem upstream `fork/<branch do PR>` e
+`push.default=upstream` só nela (`git config --worktree`), então `git push`
+simples atualiza o PR certo; o check falha se isso mudar.
 
 ## Compose local
 

@@ -8,7 +8,8 @@ outra branch variante. Sai com 1 se algo divergir.
   * worktree existe, está na branch local declarada e sem alterações rastreadas;
   * HEAD da worktree = branch do fork = head do PR (aberto, base e dono certos);
   * Compose e run-tests.sh usam exatamente as worktrees das lanes;
-  * upstream da branch local diferente de fork/<branch do PR> só gera aviso.
+  * `git push` simples na worktree publica na branch do PR: upstream
+    fork/<branch do PR> e push.default=upstream (config só da worktree).
 
     ./check-lanes.py             # completo (git ls-remote + gh)
     ./check-lanes.py --offline   # só checagens locais
@@ -86,7 +87,10 @@ def local_checks(lane):
         found.append(f"{lane['id']}: alterações rastreadas sem commit")
     upstream = git(worktree, "rev-parse", "--abbrev-ref", f"{lane['local_branch']}@{{upstream}}")
     if upstream != f"fork/{lane['fork_branch']}":
-        warnings.append(f"{lane['id']}: upstream {upstream or 'ausente'}; o PR publica fork/{lane['fork_branch']}")
+        found.append(f"{lane['id']}: upstream {upstream or 'ausente'}; o PR publica fork/{lane['fork_branch']}")
+    push_default = git(worktree, "config", "push.default") or "simple"
+    if lane["local_branch"] != lane["fork_branch"] and push_default != "upstream":
+        found.append(f"{lane['id']}: push.default={push_default}; nomes diferentes exigem upstream")
     return found, warnings, git(worktree, "rev-parse", "HEAD")
 
 
