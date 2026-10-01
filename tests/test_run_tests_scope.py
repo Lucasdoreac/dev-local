@@ -11,6 +11,13 @@ LAB = ROOT.parent
 
 
 class RunTestsScopeTest(unittest.TestCase):
+    def test_all_runs_the_harness_suite_in_the_linux_runner(self):
+        script = SCRIPT.read_text()
+        self.assertIn('python -m unittest discover -s tests -v', script)
+        self.assertIn('docker run --platform "$DOCKER_PLATFORM" --rm --network none', script)
+        all_target = script[script.index("  all)"):]
+        self.assertIn("run_harness_tests || status=1", all_target)
+
     def test_python_sources_are_derived_from_resolved_compose(self):
         script = SCRIPT.read_text()
         self.assertIn('docker compose config --format json', script)

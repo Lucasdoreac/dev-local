@@ -6,8 +6,8 @@
 # As fontes Python/E2E vão para containers descartáveis; o Web usa o mount
 # Compose e grava somente o build de produção ignorado pelo Git.
 #
-#   ./run-tests.sh                 # API, catálogo, Auth, Web e framework
-#   ./run-tests.sh python|internal|auth|frontend|framework|e2e
+#   ./run-tests.sh                 # harness, API, catálogo, Auth, Web e framework
+#   ./run-tests.sh harness|python|internal|auth|frontend|framework|e2e
 #
 # O alvo framework reproduz o workflow isolado (compile/import/Behave dry-run).
 # O alvo e2e usa runner e Chrome descartáveis em Docker contra a pilha Compose.
@@ -76,6 +76,16 @@ PROXY_ARGS=(
 )
 
 status=0
+
+run_harness_tests() {
+  echo "[dev-local] unittest do harness em Docker Linux"
+  ensure_python_test_image "$LATEST_PYTHON_IMAGE" || return 1
+  docker run --platform "$DOCKER_PLATFORM" --rm --network none \
+    -v "$LAB:/workspace/LABTECH:ro" \
+    -w /workspace/LABTECH/dev-local \
+    "$LATEST_PYTHON_IMAGE" \
+    python -m unittest discover -s tests -v
+}
 
 ensure_python_test_image() {
   local image="$1"
@@ -360,6 +370,7 @@ run_alocacao() {
 }
 
 case "${1:-all}" in
+  harness)   run_harness_tests || status=1 ;;
   python)    run_python_services || status=1 ;;
   internal)  run_internal_apis || status=1 ;;
   auth)      run_auth_service || status=1 ;;
@@ -368,6 +379,8 @@ case "${1:-all}" in
   e2e)       run_framework_e2e || status=1 ;;
   alocacao)  run_alocacao || status=1 ;;
   all)
+    run_harness_tests || status=1
+    echo
     run_python_services || status=1
     echo
     run_internal_apis || status=1
@@ -379,7 +392,7 @@ case "${1:-all}" in
     run_framework_checks || status=1
     ;;
   *)
-    echo "uso: $0 [python|internal|auth|framework|alocacao|all]" >&2
+    echo "uso: $0 [harness|python|internal|auth|frontend|framework|e2e|alocacao|all]" >&2
     exit 2
     ;;
 esac

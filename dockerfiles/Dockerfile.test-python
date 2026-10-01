@@ -1,4 +1,6 @@
-# Pin the official amd64 child manifest so a cached arm64 tag cannot be reused.
+FROM --platform=linux/amd64 docker:cli@sha256:b1805116a6a86cc591b5d5f60a910a0715cdcc9d18d866ad68b1457ead25c35c AS docker_cli
+
+# Pin the official Python amd64 child manifest to avoid reusing another platform.
 FROM python:3.14.7-slim@sha256:7bf6c3111fe094f8ee1a1cbcdc63c4cfb345b0e3df42d5aa9a90b3b4b022ab6d
 
 ARG POETRY_VERSION=2.4.1
@@ -17,3 +19,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 RUN python -m pip install --no-cache-dir "poetry==${POETRY_VERSION}"
+
+# The harness self-tests resolve Compose configuration inside this Linux runner.
+COPY --from=docker_cli /usr/local/bin/docker /usr/local/bin/docker
+COPY --from=docker_cli /usr/local/libexec/docker/cli-plugins/docker-compose /usr/local/libexec/docker/cli-plugins/docker-compose

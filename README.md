@@ -41,10 +41,13 @@ arquivo `.env` local, que não deve ser versionado.
   chamado pelo gate atual; fica como pendência de reparo ou aposentadoria, sem
   ser tratado como auditoria canônica do Web.
 
-`./run-tests.sh all` roda API, Catálogo, Auth, build/test do Web pelo Compose e
-checks unitários/dry-run do framework E2E. A pilha Compose deve estar ativa. O
-E2E real no browser fica no alvo separado `e2e`, pois cria uma conta sintética
-que precisa de banco isolado e backup validado.
+`./run-tests.sh all` roda os testes do harness em um container Linux isolado,
+API, Catálogo, Auth, build/test do Web pelo Compose e checks unitários/dry-run
+do framework E2E. A pilha Compose deve estar ativa. Para rodar só os testes do
+harness, use `./run-tests.sh harness`; o runner inclui Docker CLI e Compose
+pinados e não recebe o socket do daemon. O E2E real no browser fica no alvo
+separado `e2e`, pois cria uma conta sintética que precisa de banco isolado e
+backup validado.
 
 Para isolar o Web: `./run-tests.sh frontend`. Isso executa `yarn build` seguido
 de `yarn test` dentro do container `reservas`; não usa Node/Yarn do host.
