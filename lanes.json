@@ -1,0 +1,62 @@
+{
+  "_doc": "Fonte única PR ↔ worktree ↔ branch do fork. Caminhos relativos a ~/LABTECH. Conferir com ./check-lanes.py.",
+  "fork_owner": "Lucasdoreac",
+  "org": "LabTechUDF",
+  "lanes": [
+    {
+      "id": "api",
+      "repo": "python-services",
+      "pr": 68,
+      "base": "main",
+      "parents": [],
+      "worktree": "python-services/.worktrees/approval-security-hardening",
+      "local_branch": "fix/approval-security-hardening",
+      "fork_branch": "test/repair-logger-tests",
+      "compose": {"api": "."}
+    },
+    {
+      "id": "catalog",
+      "repo": "shared-resources",
+      "pr": 30,
+      "base": "main",
+      "parents": ["api"],
+      "worktree": "shared-resources/.worktrees/pr30-without-weekdays",
+      "local_branch": "clean/pr30-without-weekdays",
+      "fork_branch": "test/repair-internal-api-tests",
+      "compose": {"internal": "internal_apis"}
+    },
+    {
+      "id": "auth",
+      "repo": "shared-resources",
+      "pr": 31,
+      "base": "main",
+      "parents": ["api"],
+      "worktree": "shared-resources/.worktrees/auth-email-logo",
+      "local_branch": "feat/auth-email-logo",
+      "fork_branch": "chore/auth-dependencies-focused",
+      "compose": {"auth": "auth_service"}
+    },
+    {
+      "id": "web",
+      "repo": "interfaces-usuario",
+      "pr": 41,
+      "base": "main",
+      "parents": ["catalog", "auth"],
+      "worktree": ".worktrees/web-email-logo",
+      "local_branch": "fix/36-confirm-summary",
+      "fork_branch": "feat/react-router-framework",
+      "compose": {"reservas": "reservas"}
+    },
+    {
+      "id": "e2e",
+      "repo": "supreme-test-framework",
+      "pr": 3,
+      "base": "master",
+      "parents": ["web"],
+      "worktree": ".worktrees/e2e-pr3-without-offers",
+      "local_branch": "clean/pr3-without-offers",
+      "fork_branch": "chore/dependency-refresh",
+      "compose": {}
+    }
+  ]
+}

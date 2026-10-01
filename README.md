@@ -13,6 +13,16 @@ fork pessoal (remoto `fork`) e vai de lá como PR para o `origin` da organizaç�
 O `dev-local` não tem PR organizacional; o remoto `organization-origin-pending`
 apenas preserva a URL inacessível.
 
+## Lanes de PR
+
+`lanes.json` é o mapa único de cada PR aberto na organização: repositório,
+número, base, PRs pai, worktree local, branch local e branch do fork que o PR
+publica. Mude código de um PR apenas na worktree da sua lane; trabalho novo vira
+uma lane nova empilhada sobre o pai, não uma branch variante.
+`./check-lanes.py` confere se worktree, branch do fork e head do PR têm o mesmo
+SHA e se Compose e `run-tests.sh` usam essas worktrees (`--offline` pula
+GitHub). Upstream local diferente da branch do PR aparece como aviso.
+
 ## Compose local
 
 `compose.yaml` define a pilha compartilhada; `compose.override.yaml` seleciona as

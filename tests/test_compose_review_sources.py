@@ -5,13 +5,12 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED = {
-    "api": "python-services/.worktrees/approval-security-hardening",
-    "auth": "shared-resources/.worktrees/auth-email-logo/auth_service",
-    "internal": "shared-resources/.worktrees/pr30-without-weekdays/internal_apis",
-}
-
-WEB = ".worktrees/web-email-logo/reservas"  # PR #41 head (3b74b64)
+# lanes.json is the single map of PR worktrees; Compose must mount exactly those.
+LANES = json.loads((ROOT / "lanes.json").read_text())["lanes"]
+SOURCES = {service: str(Path(lane["worktree"]) / subdir)
+           for lane in LANES for service, subdir in lane["compose"].items()}
+WEB = SOURCES.pop("reservas")
+EXPECTED = SOURCES
 
 
 class ComposeReviewSourcesTest(unittest.TestCase):
