@@ -11,7 +11,7 @@ EXPECTED = {
     "internal": "shared-resources/.worktrees/pr30-without-weekdays/internal_apis",
 }
 
-WEB = ".worktrees/web-email-logo/reservas"  # PR #41 head (34fbfc0)
+WEB = ".worktrees/web-email-logo/reservas"  # PR #41 head (3b74b64)
 
 
 class ComposeReviewSourcesTest(unittest.TestCase):

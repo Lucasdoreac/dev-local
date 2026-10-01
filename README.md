@@ -8,6 +8,11 @@ remota do harness; não há dependência de um repositório homônimo na organiz
 O PR #1 para `origin/main` é o gate de revisão; não faça push direto nem merge
 em `main` sem pedido explícito.
 
+Nos quatro repositórios de aplicação o fluxo é outro: o código é publicado no
+fork pessoal (remoto `fork`) e vai de lá como PR para o `origin` da organização.
+O `dev-local` não tem PR organizacional; o remoto `organization-origin-pending`
+apenas preserva a URL inacessível.
+
 ## Compose local
 
 `compose.yaml` define a pilha compartilhada; `compose.override.yaml` seleciona as

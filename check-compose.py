@@ -37,7 +37,7 @@ def problems(svcs):
         if image and not built_here and "@sha256:" not in image and (":" not in image.rsplit("/", 1)[-1] or image.endswith(":latest")):
             found.append(f"{name}: imagem sem tag fixa ({image})")
         rm = re.fullmatch(r"(?:docker\.io/library/)?redis:(\d+)(?:[.\-].*)?", image)
-        if name == "redis" and image != EXPECTED_REDIS_IMAGE:
+        if name == "redis" and image.split("@", 1)[0] != EXPECTED_REDIS_IMAGE:
             found.append(f"redis: expected {EXPECTED_REDIS_IMAGE} (found {image})")
         if rm and int(rm.group(1)) < MIN_REDIS:
             found.append(f"{name}: redis:{rm.group(1)} (mínimo {MIN_REDIS})")

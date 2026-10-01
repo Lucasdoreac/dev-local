@@ -17,12 +17,11 @@ imagens atuais. Inspecione a
 configuração e os mounts efetivos antes de subir serviços. Preserve volumes e
 backups. Testes que gravem no banco exigem backup validado e dados isolados.
 
-O remoto atual `origin` é o repositório pessoal `Lucasdoreac/dev-local`; `main` é
-o alvo de integração e o PR para ela é o gate. A URL `LabTechUDF/dev-local` está
-preservada como `organization-origin-pending` até a organização criar o repo;
-depois, retome os PRs organizacionais.
+O remoto canônico `origin` do harness é `Lucasdoreac/dev-local`; `main` é o alvo
+de integração. Não dependa de um repositório homônimo na organização.
 
-Antes de abrir PR, integre e valide a pilha e os fluxos pertinentes como um todo
-coerente. Não abra PR parcial; não faça merge, deploy/produção, exclusões nem
-escritas em dados sem solicitação explícita. Envie código pronto ao `origin` por
-branch de revisão, sem deixá-lo apenas local; não faça push direto para `main`.
+Antes de abrir/atualizar PR, integre e valide a pilha e os fluxos pertinentes
+como um todo coerente. Não abra PR parcial; não faça merge, deploy/produção,
+exclusões nem escritas em dados sem solicitação explícita. Envie código pronto
+ao `origin` por branch de revisão, sem deixá-lo apenas local; não faça push
+direto para `main`.
