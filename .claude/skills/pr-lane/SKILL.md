@@ -44,6 +44,9 @@ git -C <worktree> push          # upstream + push.default=upstream já apontam p
 cd ~/LABTECH/dev-local && ./check-lanes.py   # deve passar com o novo SHA
 ```
 
+- Push publica no Staging: as lanes API #68, Auth #31, Catálogo #30 e Web #41
+  são as branches dos serviços Staging no Render, com auto-deploy após CI verde
+  no fork (`checksPass`). Só publique o que já passou na validação local.
 - Nunca `--force` sem pedido explícito; nunca push para o remoto `origin` da
   organização, nem merge de PR da organização.
 - Atualize a descrição do PR (`gh pr edit <n> --repo LabTechUDF/<repo>`) com o
