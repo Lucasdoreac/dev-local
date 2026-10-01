@@ -22,9 +22,18 @@ class LaneSourcesTest(unittest.TestCase):
     def setUp(self):
         self.sync = load()
 
-    def test_every_declared_lane_is_a_source(self):
+    def test_every_notebook_lane_is_a_source(self):
         lanes = self.sync.json.loads(self.sync.LANES_FILE.read_text())["lanes"]
-        self.assertEqual([l["id"] for l in lanes], [s["lane"] for s in self.sync.SOURCES])
+        expected = [l["id"] for l in lanes if l.get("notebook", True)]
+        self.assertEqual(expected, [s["lane"] for s in self.sync.SOURCES])
+
+    def test_lane_excluded_from_notebook_does_not_split_its_repo(self):
+        sources = self.sync.lane_sources([
+            lane("api", "python-services", {"api": "."}),
+            dict(lane("api-runtime", "python-services", {}), notebook=False),
+        ])
+        self.assertEqual(["api"], [s["lane"] for s in sources])
+        self.assertIsNone(sources[0]["paths"])
 
     def test_single_lane_repo_uploads_whole_tree(self):
         (source,) = self.sync.lane_sources([lane("api", "python-services", {"api": "."})])
