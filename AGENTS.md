@@ -10,6 +10,9 @@ Leia `CLAUDE.md` antes de agir e preserve todo estado local existente.
 - Compose e `run-tests.sh` devem resolver para os mesmos checkouts de API, Auth
   e Catálogo; o gate Web roda dentro do serviço Compose que monta a worktree
   selecionada. Manifestos e locks pertencem a cada repositório de aplicação.
+- Código dos repositórios de aplicação só muda pelas lanes de `lanes.json`,
+  seguindo `.claude/skills/pr-lane/SKILL.md` (Codex lê o arquivo; Claude o
+  carrega como skill `pr-lane`).
 - Preserve worktrees, alterações locais, volumes e dados. Antes de qualquer
   teste que grave em banco, valide um backup e use dados/contas isolados.
 - O remoto canônico `origin` do harness é `Lucasdoreac/dev-local`; a branch
