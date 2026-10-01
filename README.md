@@ -23,7 +23,9 @@ uma lane nova empilhada sobre o pai, não uma branch variante.
 SHA e se Compose e `run-tests.sh` usam essas worktrees (`--offline` pula
 GitHub). Cada worktree de lane tem upstream `fork/<branch do PR>` e
 `push.default=upstream` só nela (`git config --worktree`), então `git push`
-simples atualiza o PR certo; o check falha se isso mudar.
+simples atualiza o PR certo; o check falha se isso mudar. O procedimento
+completo (conferir, editar, validar, publicar, lane nova, pós-merge) está em
+`.claude/skills/pr-lane/SKILL.md`, ligado em `~/LABTECH/.claude/skills/pr-lane`.
 
 ## Compose local
 
