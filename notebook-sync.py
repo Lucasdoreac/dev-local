@@ -11,12 +11,17 @@ app/services/sober_notebook_refresh.py), aplicado aos repos do LabTech:
   * sobe TODAS as fontes novas e só então, com --prune, apaga as antigas
     criadas por este script (título "LabTech código: <repo> @ ...").
 
+As fontes são as lanes de lanes.json: uma por PR aberto, lida da branch local
+da lane. Repo com mais de uma lane (shared-resources) sobe de cada lane só a
+pasta do seu serviço, mais arquivos da raiz e .github/.
+
 Uso:
     ./notebook-sync.py --dry-run          # mostra o que subiria, não toca no caderno
     ./notebook-sync.py                    # sobe as fontes novas
     ./notebook-sync.py --prune            # sobe e apaga as versões antigas deste script
-    ./notebook-sync.py --ref python-services=main   # outra branch/commit
-    ./notebook-sync.py --only python-services --prune   # um repo só (usado pelo hook de push)
+    ./notebook-sync.py --only python-services --prune   # lanes de um repo só
+    ./notebook-sync.py --push shared-resources chore/auth-dependencies-focused <sha> --prune
+                                          # hook de push: só a lane daquela branch do fork
 
 Nunca manda para o caderno do Estágio (público: o código traz e-mails de
 desenvolvedores).
@@ -32,14 +37,31 @@ LAB = pathlib.Path(__file__).resolve().parents[1]
 NOTEBOOK_ID = "33c068ee-16a4-4fd2-852b-f111adaa5087"  # Darlas 2022
 TITLE_PREFIX = "LabTech código: "
 
-# repo -> branch da rodada de prioridades (26/09/2026). Escopo acordado:
-# Reservas API, Auth/catálogo, interface e framework de testes.
-REPOS = {
-    "python-services": "test/repair-logger-tests",
-    "shared-resources": "chore/dependency-refresh",
-    "interfaces-usuario": "chore/dependency-refresh",
-    "supreme-test-framework": "chore/dependency-refresh",
-}
+LANES_FILE = LAB / "dev-local" / "lanes.json"
+
+
+def lane_sources(lanes):
+    """Uma fonte por lane. Com várias lanes no mesmo repo, cada uma traz só as
+    pastas dos seus serviços (campo compose), a raiz e .github/."""
+    per_repo = {}
+    for lane in lanes:
+        per_repo.setdefault(lane["repo"], []).append(lane)
+    sources = []
+    for lane in lanes:
+        dirs = sorted({d.strip("/") for d in lane["compose"].values()} - {"", "."})
+        paths = None
+        if len(per_repo[lane["repo"]]) > 1 and dirs:
+            paths = tuple(f"{d}/" for d in dirs) + (".github/",)
+        sources.append({
+            "repo": lane["repo"], "lane": lane["id"], "ref": lane["local_branch"],
+            "fork_branch": lane["fork_branch"],
+            "label": f"PR #{lane['pr']} {lane['fork_branch']}", "paths": paths,
+        })
+    return sources
+
+
+SOURCES = lane_sources(json.loads(LANES_FILE.read_text())["lanes"])
+REPOS = sorted({source["repo"] for source in SOURCES})  # usado por install-hooks.sh
 # Dados que não sobem (nomes de professores, cópia do banco da UDF).
 REPO_EXCLUDES = {
     "scripts": ("collection/", "new_collection/"),
@@ -71,7 +93,12 @@ PLACEHOLDER_WORDS = ("your", "here", "change", "example", "placeholder", "dummy"
 def looks_like_secret(line):
     for pattern in SECRET_PATTERNS:
         m = pattern.search(line)
-        if m and not any(w in m.group(0).lower() for w in PLACEHOLDER_WORDS):
+        if not m:
+            continue
+        # O valor inteiro (até espaço/aspas) conta: uma URI de teste só revela
+        # o host reservado *.example.* depois do "@".
+        token = re.match(r"[^\s'\"]*", line[m.start():]).group(0)
+        if not any(w in max(m.group(0), token, key=len).lower() for w in PLACEHOLDER_WORDS):
             return True
     return False
 
@@ -81,22 +108,23 @@ def git(repo, *args):
                           capture_output=True, text=True).stdout
 
 
-def skip(path, repo=None):
+def skip(path, repo=None, paths=None):
     name = path.rsplit("/", 1)[-1]
-    return (path.startswith(REPO_EXCLUDES.get(repo, ())) or name in SKIP_NAMES or name.startswith(".env.") and name != ".env.example"
+    outside = paths is not None and "/" in path and not path.startswith(paths)
+    return (outside or path.startswith(REPO_EXCLUDES.get(repo, ())) or name in SKIP_NAMES or name.startswith(".env.") and name != ".env.example"
             or path.lower().endswith(SKIP_EXT) or any(d in path for d in SKIP_DIRS))
 
 
-def bundle(repo, ref, commit=None):
-    """`ref` dá o nome (título); `commit`, se vier, é o que é lido de fato
-    (o hook de push manda o sha exato que chegou ao GitHub)."""
-    ref_name, ref = ref, commit or ref
+def bundle(repo, ref, commit=None, paths=None):
+    """`commit`, se vier, é o que é lido de fato (o hook de push manda o sha
+    exato que chegou ao GitHub); `paths` limita às pastas da lane."""
+    ref = commit or ref
     sha = git(repo, "rev-parse", "--short", ref).strip()
     parts, excluded, secrets = [], 0, []
     current = []
     size = 0
     for path in git(repo, "ls-tree", "-r", "--name-only", ref).splitlines():
-        if skip(path, repo):
+        if skip(path, repo, paths):
             excluded += 1
             continue
         raw = subprocess.run(["git", "-C", str(LAB / repo), "show", f"{ref}:{path}"],
@@ -119,11 +147,17 @@ def bundle(repo, ref, commit=None):
     return sha, parts, excluded, secrets
 
 
-def old_versions(existing, synced_repos, keep_ids):
-    """Fontes antigas deste script a apagar: só dos repos sincronizados agora, e
-    nunca as que ficam (recém-subidas ou já atualizadas). Compara por ID: duas
-    fontes podem ter o mesmo título."""
-    prefixes = tuple(f"{TITLE_PREFIX}{repo} @ " for repo in synced_repos)
+def title_prefix(source=None, repo=None):
+    if source is None:
+        return f"{TITLE_PREFIX}{repo} @ "
+    return f"{TITLE_PREFIX}{source['repo']} @ {source['label']} "
+
+
+def old_versions(existing, prefixes, keep_ids):
+    """Fontes antigas deste script a apagar: só com os prefixos sincronizados
+    agora, e nunca as que ficam (recém-subidas ou já atualizadas). Compara por
+    ID: duas fontes podem ter o mesmo título."""
+    prefixes = tuple(prefixes)
     return [s for s in existing
             if str(s.get("title", "")).startswith(prefixes) and s.get("id") not in keep_ids]
 
@@ -139,22 +173,30 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--prune", action="store_true")
-    ap.add_argument("--ref", action="append", default=[], help="repo=branch")
-    ap.add_argument("--only", action="append", default=[], help="sincroniza só este repo")
-    ap.add_argument("--commit", action="append", default=[], help="repo=sha: lê este commit (título mantém a branch)")
+    ap.add_argument("--only", action="append", default=[], help="sincroniza só as lanes deste repo")
+    ap.add_argument("--push", nargs=3, metavar=("REPO", "BRANCH_FORK", "SHA"),
+                    help="hook de push: sincroniza só a lane desta branch do fork, lendo o SHA enviado")
     args = ap.parse_args()
-    repos = dict(REPOS)
-    for item in args.ref:
-        repo, _, ref = item.partition("=")
-        repos[repo] = ref
+    sources, commit = list(SOURCES), None
     if args.only:
-        unknown = set(args.only) - set(repos)
+        unknown = set(args.only) - set(REPOS)
         if unknown:
             print("repo desconhecido:", ", ".join(sorted(unknown)))
             return 2
-        repos = {r: repos[r] for r in args.only}
-
-    commits = dict(item.partition("=")[::2] for item in args.commit)
+        sources = [s for s in sources if s["repo"] in args.only]
+    if args.push:
+        repo, branch, commit = args.push
+        sources = [s for s in sources if s["repo"] == repo and s["fork_branch"] == branch]
+        if not sources:
+            print(f"{repo} {branch} não é branch de lane: caderno não muda")
+            return 0
+    # Sincronização parcial (hook) só poda versões antigas da própria lane;
+    # a completa poda tudo deste script nos repos sincronizados, inclusive
+    # fontes de branches que deixaram de ser lanes.
+    if args.push:
+        prune_prefixes = [title_prefix(s) for s in sources]
+    else:
+        prune_prefixes = [title_prefix(repo=r) for r in sorted({s["repo"] for s in sources})]
 
     # 1. Caderno primeiro: sessão expirada = aborta sem tocar em nada.
     if not args.dry_run:
@@ -166,25 +208,28 @@ def main():
         existing = existing if isinstance(existing, list) else existing.get("sources", [])
 
     # 2. Empacota e varre segredos.
-    sources, all_secrets = [], []
-    for repo, ref in repos.items():
-        sha, parts, excluded, secrets = bundle(repo, ref, commits.get(repo))
+    bundles, all_secrets = [], []
+    for source in sources:
+        repo, label = source["repo"], source["label"]
+        sha, parts, excluded, secrets = bundle(repo, source["ref"], commit, source["paths"])
         all_secrets += secrets
+        scope = f", pastas {' '.join(source['paths'])}" if source["paths"] else ""
         for i, body in enumerate(parts, 1):
             suffix = f" (parte {i}/{len(parts)})" if len(parts) > 1 else ""
-            title = f"{TITLE_PREFIX}{repo} @ {ref} {sha}{suffix}"
-            header = (f"Código do repositório {repo}, branch {ref}, commit {sha}. Só arquivos "
+            title = f"{title_prefix(source)}{sha}{suffix}"
+            header = (f"Código do repositório {repo}, {label}, commit {sha}{scope}. Só arquivos "
                       f"versionados; sem lockfiles, binários e .env. Gerado por dev-local/notebook-sync.py.")
-            sources.append((title, header + body))
-        print(f"{repo} @ {ref} {sha}: {len(parts)} fonte(s), {sum(map(len, parts)) // 1024} KB, "
-              f"{excluded} arquivos excluídos")
+            bundles.append((title, header + body))
+        print(f"{repo} @ {label} {sha}: {len(parts)} fonte(s), {sum(map(len, parts)) // 1024} KB, "
+              f"{excluded} arquivos excluídos{scope}")
     if all_secrets:
         print("ABORTADO: possível segredo em", ", ".join(all_secrets))
         return 3
     print("varredura de segredos: nada encontrado")
     if args.dry_run:
-        for title, _ in sources:
+        for title, _ in bundles:
             print("  subiria:", title)
+        print("  podaria (com --prune) fontes antigas com prefixo:", "; ".join(prune_prefixes))
         return 0
 
     # 3. Sobe o que mudou (versão igual já no caderno = pula); só depois poda.
@@ -192,7 +237,7 @@ def main():
     for s in existing:
         by_title.setdefault(s.get("title"), s.get("id"))
     keep, uploaded = set(), 0
-    for title, body in sources:
+    for title, body in bundles:
         if title in by_title:
             keep.add(by_title[title])
             print("  já atualizado:", title)
@@ -206,7 +251,7 @@ def main():
         uploaded += 1
         print("  subiu:", title)
     if args.prune:
-        for s in old_versions(existing, repos, keep):
+        for s in old_versions(existing, prune_prefixes, keep):
             nlm("source", "delete", s["id"], "--confirm")
             print("  apagou versão antiga:", s["title"])
     print(f"=== NOTEBOOK SYNC: {uploaded} nova(s), {len(keep) - uploaded} já atualizada(s) ===")

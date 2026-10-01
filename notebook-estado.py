@@ -6,7 +6,7 @@ fonte junta o que já é medido ou versionado:
   * reports/prs/FILA.md e reports/prs/<ID>.md (fila, dependências, seção Deploy);
   * reports/prs/verificacao.txt (suíte medida na ponta de cada PR);
   * estado real de cada PR no GitHub (gh: aberto / mergeado / fechado);
-  * REPOS do notebook-sync.py (branch de cada fonte de código);
+  * SOURCES do notebook-sync.py (lane de PR de cada fonte de código);
   * reports/notebook-sources/pendencias.md (lista curada de pendências).
 
 Igual ao notebook-sync.py: lê o caderno antes (sessão expirada = aborta sem
@@ -129,8 +129,8 @@ def build():
         if nota:
             partes.append(f"deploy: {nota}")
         lines.append("- " + "; ".join(partes))
-    lines += ["", "## Código sincronizado (branch de trabalho de cada repo)"]
-    lines += [f"- {repo}: {ref}" for repo, ref in sync.REPOS.items()]
+    lines += ["", "## Código sincronizado (uma fonte por lane de PR)"]
+    lines += [f"- {s['repo']}: {s['label']}" for s in sync.SOURCES]
     pend = re.sub(r"<!--.*?-->\n?", "", PENDENCIAS.read_text(), flags=re.S).strip()
     # Pendência resolvida no quadro público (cartão [D-n] fechado) sai daqui também.
     for n in pendencias_resolvidas():
