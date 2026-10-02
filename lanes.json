@@ -395,6 +395,19 @@
       "compose": {},
       "draft": true,
       "notebook": false
+    },
+    {
+      "id": "e2e-selectors",
+      "repo": "supreme-test-framework",
+      "pr": 4,
+      "base": "master",
+      "parents": ["e2e"],
+      "worktree": "supreme-test-framework/.worktrees/e2e-selectors",
+      "local_branch": "fix/e2e-selectors-new-markup",
+      "fork_branch": "fix/e2e-selectors-new-markup",
+      "compose": {},
+      "draft": true,
+      "notebook": false
     }
   ]
 }
