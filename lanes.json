@@ -278,6 +278,45 @@
       "compose": {},
       "draft": true,
       "notebook": false
+    },
+    {
+      "id": "web-a11y",
+      "repo": "interfaces-usuario",
+      "pr": 50,
+      "base": "main",
+      "parents": ["web"],
+      "worktree": ".worktrees/g18-web-a11y",
+      "local_branch": "feat/a11y-controls-and-form",
+      "fork_branch": "feat/a11y-controls-and-form",
+      "compose": {},
+      "draft": true,
+      "notebook": false
+    },
+    {
+      "id": "api-stdout-log",
+      "repo": "python-services",
+      "pr": 79,
+      "base": "main",
+      "parents": ["api-audit"],
+      "worktree": "python-services/.worktrees/g0g-api-stdout-log",
+      "local_branch": "fix/log-to-stdout",
+      "fork_branch": "fix/log-to-stdout",
+      "compose": {},
+      "draft": true,
+      "notebook": false
+    },
+    {
+      "id": "catalog-stdout-log",
+      "repo": "shared-resources",
+      "pr": 39,
+      "base": "main",
+      "parents": ["catalog"],
+      "worktree": "shared-resources/.worktrees/g0g-catalog-stdout-log",
+      "local_branch": "fix/catalog-log-to-stdout",
+      "fork_branch": "fix/catalog-log-to-stdout",
+      "compose": {},
+      "draft": true,
+      "notebook": false
     }
   ]
 }
