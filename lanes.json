@@ -239,6 +239,19 @@
       "compose": {},
       "draft": true,
       "notebook": false
+    },
+    {
+      "id": "api-json",
+      "repo": "python-services",
+      "pr": 78,
+      "base": "main",
+      "parents": ["api-forward"],
+      "worktree": "python-services/.worktrees/g0c-api-json",
+      "local_branch": "fix/auth-passthrough-json",
+      "fork_branch": "fix/auth-passthrough-json",
+      "compose": {},
+      "draft": true,
+      "notebook": false
     }
   ]
 }
