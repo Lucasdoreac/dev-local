@@ -343,6 +343,19 @@
       "compose": {},
       "draft": true,
       "notebook": false
+    },
+    {
+      "id": "web-change-request",
+      "repo": "interfaces-usuario",
+      "pr": 51,
+      "base": "main",
+      "parents": ["web"],
+      "worktree": ".worktrees/g11-web-change-request",
+      "local_branch": "feat/35-show-change-request",
+      "fork_branch": "feat/35-show-change-request",
+      "compose": {},
+      "draft": true,
+      "notebook": false
     }
   ]
 }
