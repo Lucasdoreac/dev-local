@@ -75,6 +75,9 @@ arquivo `.env` local, que não deve ser versionado.
   runtime; `dockerfiles/Dockerfile.test-python` é o runner isolado de testes.
   `Dockerfile.reservas` fornece a base Node/Yarn para o Web montado. Esses
   Dockerfiles têm ciclos diferentes e não substituem os locks.
+  Alpine (Auth/Catálogo, lanes `auth-alpine`/`catalog-alpine`): `TEST_LIBC=musl ./run-tests.sh auth|internal`
+  usa o runner `Dockerfile.test-python-musl` (cache e tag próprios); `compose.alpine.yaml`
+  sobe as imagens de produção dessas lanes na pilha (`COMPOSE_FILE=compose.yaml:compose.override.yaml:compose.alpine.yaml`).
 - `run-tests.sh` e os scripts deste diretório orquestram serviços e verificações;
   não são outro lugar para declarar dependências da aplicação.
 - `audit-frontend.sh` é um utilitário manual legado: usa `npm`/`package-lock.json`
