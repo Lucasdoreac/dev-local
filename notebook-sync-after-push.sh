@@ -11,8 +11,8 @@ mkdir -p logs
 exec >> logs/notebook-sync.log 2>&1
 echo "=== $(date '+%F %T') push de $repo: $local_branch -> $push_remote/$remote_branch ${sha:0:7}"
 
-if ! python3 -c 'import json,sys; sys.exit(not any(l["repo"] == sys.argv[1] and l["fork_branch"] == sys.argv[2] for l in json.load(open("lanes.json"))["lanes"]))' "$repo" "$remote_branch"; then
-  echo "não é branch de lane: caderno não muda"
+if ! python3 -c 'import json,sys; sys.exit(not any(l["repo"] == sys.argv[1] and l["fork_branch"] == sys.argv[2] and l.get("notebook", True) for l in json.load(open("lanes.json"))["lanes"]))' "$repo" "$remote_branch"; then
+  echo "não é branch de lane do caderno: caderno não muda"
   exit 0
 fi
 

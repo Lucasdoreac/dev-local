@@ -1,5 +1,5 @@
 {
-  "_doc": "Fonte única PR ↔ worktree ↔ branch do fork. Caminhos relativos a ~/LABTECH. Conferir com ./check-lanes.py.",
+  "_doc": "Fonte única PR ↔ worktree ↔ branch do fork. Caminhos relativos a ~/LABTECH. Conferir com ./check-lanes.py. Lanes com \"draft\": true são Drafts empilhados numa lane principal: entram no check-lanes e no OSV e ficam fora do caderno (\"notebook\": false) e da fila pública.",
   "fork_owner": "Lucasdoreac",
   "org": "LabTechUDF",
   "lanes": [
@@ -57,6 +57,97 @@
       "local_branch": "clean/pr3-without-offers",
       "fork_branch": "chore/dependency-refresh",
       "compose": {}
+    },
+    {
+      "id": "api-overlap",
+      "repo": "python-services",
+      "pr": 73,
+      "base": "main",
+      "parents": ["api"],
+      "worktree": "python-services/.worktrees/g4-overlap",
+      "local_branch": "fix/69-reservation-overlap",
+      "fork_branch": "fix/69-reservation-overlap",
+      "compose": {},
+      "draft": true,
+      "notebook": false
+    },
+    {
+      "id": "api-smtp",
+      "repo": "python-services",
+      "pr": 74,
+      "base": "main",
+      "parents": ["api"],
+      "worktree": "python-services/.worktrees/g4-smtp",
+      "local_branch": "feat/api-smtp-fallback",
+      "fork_branch": "feat/api-smtp-fallback",
+      "compose": {},
+      "draft": true,
+      "notebook": false
+    },
+    {
+      "id": "api-rooms",
+      "repo": "python-services",
+      "pr": 75,
+      "base": "main",
+      "parents": ["api"],
+      "worktree": "python-services/.worktrees/g4-rooms",
+      "local_branch": "fix/rooms-requires-room-id",
+      "fork_branch": "fix/rooms-requires-room-id",
+      "compose": {},
+      "draft": true,
+      "notebook": false
+    },
+    {
+      "id": "web-pagination",
+      "repo": "interfaces-usuario",
+      "pr": 42,
+      "base": "main",
+      "parents": ["web"],
+      "worktree": ".worktrees/g4-web-pagination",
+      "local_branch": "fix/27-room-pagination",
+      "fork_branch": "fix/27-room-pagination",
+      "compose": {},
+      "draft": true,
+      "notebook": false
+    },
+    {
+      "id": "web-enter",
+      "repo": "interfaces-usuario",
+      "pr": 43,
+      "base": "main",
+      "parents": ["web"],
+      "worktree": ".worktrees/g4-web-enter",
+      "local_branch": "fix/34-enter-submits-login",
+      "fork_branch": "fix/34-enter-submits-login",
+      "compose": {},
+      "draft": true,
+      "notebook": false
+    },
+    {
+      "id": "web-logout",
+      "repo": "interfaces-usuario",
+      "pr": 44,
+      "base": "main",
+      "parents": ["web"],
+      "worktree": ".worktrees/g4-web-logout",
+      "local_branch": "feat/17-logout-button",
+      "fork_branch": "feat/17-logout-button",
+      "compose": {},
+      "draft": true,
+      "notebook": false
+    },
+    {
+      "id": "web-steps",
+      "repo": "interfaces-usuario",
+      "pr": 45,
+      "base": "main",
+      "parents": ["web"],
+      "worktree": ".worktrees/g4-web-steps",
+      "local_branch": "feat/18-step-indicator",
+      "fork_branch": "feat/18-step-indicator",
+      "compose": {},
+      "draft": true,
+      "notebook": false
     }
   ]
 }
