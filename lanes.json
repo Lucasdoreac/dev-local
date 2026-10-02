@@ -15,18 +15,6 @@
       "compose": {"api": "."}
     },
     {
-      "id": "api-runtime",
-      "repo": "python-services",
-      "pr": 72,
-      "base": "main",
-      "parents": ["api"],
-      "worktree": "python-services/.worktrees/api-runtime-build-tools",
-      "local_branch": "chore/api-runtime-build-tools",
-      "fork_branch": "chore/api-runtime-build-tools",
-      "compose": {},
-      "notebook": false
-    },
-    {
       "id": "catalog",
       "repo": "shared-resources",
       "pr": 30,
@@ -47,54 +35,6 @@
       "local_branch": "feat/auth-email-logo",
       "fork_branch": "chore/auth-dependencies-focused",
       "compose": {"auth": "auth_service"}
-    },
-    {
-      "id": "auth-runtime",
-      "repo": "shared-resources",
-      "pr": 32,
-      "base": "main",
-      "parents": ["auth"],
-      "worktree": "shared-resources/.worktrees/auth-runtime-build-tools",
-      "local_branch": "chore/auth-runtime-build-tools",
-      "fork_branch": "chore/auth-runtime-build-tools",
-      "compose": {},
-      "notebook": false
-    },
-    {
-      "id": "catalog-runtime",
-      "repo": "shared-resources",
-      "pr": 33,
-      "base": "main",
-      "parents": ["catalog"],
-      "worktree": "shared-resources/.worktrees/catalog-runtime-build-tools",
-      "local_branch": "chore/catalog-runtime-build-tools",
-      "fork_branch": "chore/catalog-runtime-build-tools",
-      "compose": {},
-      "notebook": false
-    },
-    {
-      "id": "auth-alpine",
-      "repo": "shared-resources",
-      "pr": 34,
-      "base": "main",
-      "parents": ["auth-runtime"],
-      "worktree": "shared-resources/.worktrees/auth-alpine",
-      "local_branch": "chore/auth-alpine-runtime",
-      "fork_branch": "chore/auth-alpine-runtime",
-      "compose": {},
-      "notebook": false
-    },
-    {
-      "id": "catalog-alpine",
-      "repo": "shared-resources",
-      "pr": 35,
-      "base": "main",
-      "parents": ["catalog-runtime"],
-      "worktree": "shared-resources/.worktrees/catalog-alpine",
-      "local_branch": "chore/catalog-alpine-runtime",
-      "fork_branch": "chore/catalog-alpine-runtime",
-      "compose": {},
-      "notebook": false
     },
     {
       "id": "web",

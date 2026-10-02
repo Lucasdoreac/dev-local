@@ -1,11 +1,11 @@
 # Overlay opcional: Auth e Catálogo com a imagem de produção Alpine (Dockerfile
-# das lanes auth-alpine e catalog-alpine), sem mount de código nem Poetry.
+# das lanes auth (#31) e catalog (#30)), sem mount de código nem Poetry.
 #   docker compose -f compose.yaml -f compose.override.yaml -f compose.alpine.yaml up -d --build auth internal
 # O comando e a porta vêm do CMD da imagem (PORT), como no Render.
 services:
   auth:
     build: !override
-      context: ${AUTH_ALPINE_DIR:-../shared-resources/.worktrees/auth-alpine/auth_service}
+      context: ${AUTH_ALPINE_DIR:-../shared-resources/.worktrees/auth-email-logo/auth_service}
       dockerfile: Dockerfile
     image: labtech-dev-auth-alpine:local
     volumes: !reset []
@@ -15,7 +15,7 @@ services:
 
   internal:
     build: !override
-      context: ${CATALOG_ALPINE_DIR:-../shared-resources/.worktrees/catalog-alpine/internal_apis}
+      context: ${CATALOG_ALPINE_DIR:-../shared-resources/.worktrees/pr30-without-weekdays/internal_apis}
       dockerfile: Dockerfile
     image: labtech-dev-internal-alpine:local
     volumes: !reset []
