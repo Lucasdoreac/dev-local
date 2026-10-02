@@ -252,6 +252,32 @@
       "compose": {},
       "draft": true,
       "notebook": false
+    },
+    {
+      "id": "web-inputs",
+      "repo": "interfaces-usuario",
+      "pr": 48,
+      "base": "main",
+      "parents": ["web"],
+      "worktree": ".worktrees/g0e-web-inputs",
+      "local_branch": "fix/event-id-and-safe-urls",
+      "fork_branch": "fix/event-id-and-safe-urls",
+      "compose": {},
+      "draft": true,
+      "notebook": false
+    },
+    {
+      "id": "web-boot",
+      "repo": "interfaces-usuario",
+      "pr": 49,
+      "base": "main",
+      "parents": ["web"],
+      "worktree": ".worktrees/g0e-web-boot",
+      "local_branch": "feat/csp-externalize-boot",
+      "fork_branch": "feat/csp-externalize-boot",
+      "compose": {},
+      "draft": true,
+      "notebook": false
     }
   ]
 }
