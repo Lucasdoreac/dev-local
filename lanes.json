@@ -356,6 +356,45 @@
       "compose": {},
       "draft": true,
       "notebook": false
+    },
+    {
+      "id": "api-log-client-ip",
+      "repo": "python-services",
+      "pr": 82,
+      "base": "main",
+      "parents": ["api-stdout-log"],
+      "worktree": "python-services/.worktrees/log-client-ip",
+      "local_branch": "fix/log-client-ip",
+      "fork_branch": "fix/log-client-ip",
+      "compose": {},
+      "draft": true,
+      "notebook": false
+    },
+    {
+      "id": "catalog-json-errors",
+      "repo": "shared-resources",
+      "pr": 40,
+      "base": "main",
+      "parents": ["catalog-errors"],
+      "worktree": "shared-resources/.worktrees/catalog-json-errors",
+      "local_branch": "fix/catalog-json-http-errors",
+      "fork_branch": "fix/catalog-json-http-errors",
+      "compose": {},
+      "draft": true,
+      "notebook": false
+    },
+    {
+      "id": "web-a11y-landmarks",
+      "repo": "interfaces-usuario",
+      "pr": 52,
+      "base": "main",
+      "parents": ["web"],
+      "worktree": ".worktrees/a11y-followup",
+      "local_branch": "feat/a11y-landmarks-focus",
+      "fork_branch": "feat/a11y-landmarks-focus",
+      "compose": {},
+      "draft": true,
+      "notebook": false
     }
   ]
 }
