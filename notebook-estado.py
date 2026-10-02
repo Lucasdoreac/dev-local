@@ -44,10 +44,10 @@ def fila():
     for line in (PRS / "FILA.md").read_text().splitlines():
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
         if len(cells) == 7 and cells[0].isdigit():
-            n, pr, repo, _branch, commits, closes, deps = cells
+            n, pr, repo, branch, commits, closes, deps = cells
             pid, _, title = pr.partition(" ")
-            rows.append({"id": pid, "titulo": title, "repo": repo, "commits": commits,
-                         "fecha": closes, "depende": deps})
+            rows.append({"id": pid, "titulo": title, "repo": repo, "branch": branch.strip("`"),
+                         "commits": commits, "fecha": closes, "depende": deps})
     return rows
 
 
@@ -66,8 +66,10 @@ def deploy_note(pid):
     return " ".join(m.group(1).split()) if m else ""
 
 
-def prs_no_github(repos):
-    """head pr/<ID> -> (estado, número). Falha do gh = aborta (não publica estado errado)."""
+def prs_no_github(rows):
+    """id da fila -> (estado, número), pela branch do fork de cada linha. Falha do gh = aborta."""
+    repos = {r["repo"] for r in rows}
+    por_branch = {(r["repo"], r["branch"]): r["id"] for r in rows}
     state = {}
     for repo in sorted(repos):
         out = subprocess.run(["gh", "pr", "list", "--repo", f"{ORG}/{repo}", "--state", "all",
@@ -77,9 +79,9 @@ def prs_no_github(repos):
         if out.returncode != 0:
             raise RuntimeError(f"gh pr list {repo} falhou")
         for pr in json.loads(out.stdout):
-            head = pr["headRefName"]
-            if head.startswith("pr/"):
-                state[head[3:]] = (pr["state"].lower(), pr["number"])
+            pid = por_branch.get((repo, pr["headRefName"]))
+            if pid and pid not in state:  # o mais recente vem primeiro
+                state[pid] = (pr["state"].lower(), pr["number"])
     return state
 
 
@@ -98,7 +100,7 @@ ESTADO = {"open": "aberto, em revisão", "merged": "mergeado", "closed": "fechad
 
 def build():
     rows, verif = fila(), verificacao()
-    gh = prs_no_github({r["repo"] for r in rows})
+    gh = prs_no_github(rows)
     lines = [
         "# 🧱 LabTech — estado e fila de PRs (gerado automaticamente)",
         "",
