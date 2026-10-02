@@ -161,6 +161,45 @@
       "compose": {},
       "draft": true,
       "notebook": false
+    },
+    {
+      "id": "web-singleflight",
+      "repo": "interfaces-usuario",
+      "pr": 47,
+      "base": "main",
+      "parents": ["web"],
+      "worktree": ".worktrees/g10-web-singleflight",
+      "local_branch": "fix/29-single-flight-submit",
+      "fork_branch": "fix/29-single-flight-submit",
+      "compose": {},
+      "draft": true,
+      "notebook": false
+    },
+    {
+      "id": "api-audit",
+      "repo": "python-services",
+      "pr": 76,
+      "base": "main",
+      "parents": ["api"],
+      "worktree": "python-services/.worktrees/g10-api-audit",
+      "local_branch": "feat/12-request-audit-log",
+      "fork_branch": "feat/12-request-audit-log",
+      "compose": {},
+      "draft": true,
+      "notebook": false
+    },
+    {
+      "id": "catalog-errors",
+      "repo": "shared-resources",
+      "pr": 36,
+      "base": "main",
+      "parents": ["catalog"],
+      "worktree": "shared-resources/.worktrees/g10-catalog-errors",
+      "local_branch": "fix/7-error-handler-contract",
+      "fork_branch": "fix/7-error-handler-contract",
+      "compose": {},
+      "draft": true,
+      "notebook": false
     }
   ]
 }
