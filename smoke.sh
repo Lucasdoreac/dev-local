@@ -23,8 +23,9 @@ fail() { echo "=== SMOKE: FAIL — $1 ==="; exit 1; }
 mongo() { docker compose exec -T mongo mongosh --quiet rooms-reservation-app --eval "$1"; }
 
 echo "[1/4] serviços"
-for u in http://127.0.0.1:3000/ http://127.0.0.1:5000/apidocs/ \
-         http://127.0.0.1:5050/apidocs/ http://127.0.0.1:5081/apispec.json \
+# /health: as docs (Swagger) ficam fechadas por padrão nos três serviços.
+for u in http://127.0.0.1:3000/ http://127.0.0.1:5000/health \
+         http://127.0.0.1:5050/health http://127.0.0.1:5081/health \
          http://127.0.0.1:9000/minio/health/live; do
   ok=""
   for _ in $(seq 1 90); do

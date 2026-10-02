@@ -255,7 +255,8 @@ run_framework_e2e() (
 
   local chrome_name="labtech-e2e-chrome-$$"
   local web_name="labtech-e2e-web-$$"
-  local web_alias="$web_name"
+  # Alias fixo: é a origem que o CORS do compose aceita para o E2E.
+  local web_alias="labtech-e2e-web"
   # Isolated synthetic account: checked for pre-existence and removed by
   # cleanup_e2e before/after the run.
   local test_email="${E2E_TEST_EMAIL:-e2e-ci@udf.edu.br}"
