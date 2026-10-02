@@ -213,6 +213,19 @@
       "compose": {},
       "draft": true,
       "notebook": false
+    },
+    {
+      "id": "auth-limits",
+      "repo": "shared-resources",
+      "pr": 38,
+      "base": "main",
+      "parents": ["auth"],
+      "worktree": "shared-resources/.worktrees/g0c-auth-limits",
+      "local_branch": "fix/auth-per-client-limits",
+      "fork_branch": "fix/auth-per-client-limits",
+      "compose": {},
+      "draft": true,
+      "notebook": false
     }
   ]
 }
