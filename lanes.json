@@ -148,6 +148,19 @@
       "compose": {},
       "draft": true,
       "notebook": false
+    },
+    {
+      "id": "web-cardheader",
+      "repo": "interfaces-usuario",
+      "pr": 46,
+      "base": "main",
+      "parents": ["web"],
+      "worktree": ".worktrees/g8-web-cardheader",
+      "local_branch": "fix/home-card-header-style",
+      "fork_branch": "fix/home-card-header-style",
+      "compose": {},
+      "draft": true,
+      "notebook": false
     }
   ]
 }
