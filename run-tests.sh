@@ -7,7 +7,7 @@
 # Compose e grava somente o build de produção ignorado pelo Git.
 #
 #   ./run-tests.sh                 # harness, API, catálogo, Auth, Web e framework
-#   ./run-tests.sh harness|python|internal|auth|frontend|framework|e2e
+#   ./run-tests.sh harness|python|internal|auth|frontend|framework|e2e|advisories
 #
 # O alvo framework reproduz o workflow isolado (compile/import/Behave dry-run).
 # O alvo e2e usa runner e Chrome descartáveis em Docker contra a pilha Compose.
@@ -362,6 +362,16 @@ PY
     '
 )
 
+run_advisories() {
+  echo "[dev-local] OSV nas locks das lanes em Docker Linux"
+  ensure_python_test_image "$LATEST_PYTHON_IMAGE" || return 1
+  docker run --platform "$DOCKER_PLATFORM" --rm --network bridge "${PROXY_ARGS[@]}" \
+    -v "$LAB:/workspace/LABTECH:ro" \
+    -w /workspace/LABTECH/dev-local \
+    "$LATEST_PYTHON_IMAGE" \
+    sh -ec 'python check-advisories.py --self-test && python check-advisories.py'
+}
+
 run_alocacao() {
   echo "[teachers-allocation] build + pytest (fora do alvo padrão desta etapa)"
   docker build --platform "$DOCKER_PLATFORM" -q -t labtech-alocacao-tests "$LAB/teachers-allocation/backend" >/dev/null || return 1
@@ -377,6 +387,7 @@ case "${1:-all}" in
   frontend)  run_frontend || status=1 ;;
   framework) run_framework_checks || status=1 ;;
   e2e)       run_framework_e2e || status=1 ;;
+  advisories) run_advisories || status=1 ;;
   alocacao)  run_alocacao || status=1 ;;
   all)
     run_harness_tests || status=1
@@ -392,7 +403,7 @@ case "${1:-all}" in
     run_framework_checks || status=1
     ;;
   *)
-    echo "uso: $0 [harness|python|internal|auth|frontend|framework|e2e|alocacao|all]" >&2
+    echo "uso: $0 [harness|python|internal|auth|frontend|framework|e2e|advisories|alocacao|all]" >&2
     exit 2
     ;;
 esac

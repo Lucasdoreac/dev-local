@@ -7,6 +7,7 @@
 #   3. abrir-proximos.py             abre o próximo PR de cada repo quando o anterior recebe merge
 #   4. notebook-sync.py --prune      código das branches de trabalho (só sobe o que mudou)
 #   5. notebook-estado.py --prune    fonte "estado e fila" gerada dos dados
+#   6. run-tests.sh advisories       OSV nas locks das lanes (Docker); achado = notificação
 # Falha = notificação do macOS + dev-local/logs/notebook-auto.log. Nada aqui
 # toca no caderno do Estágio (público). Push automático de data/ autorizado pelo
 # dono em 25/09/2026.
@@ -66,6 +67,18 @@ fi
 [ $rc -eq 0 ] || falhou="${falhou:+$falhou e }fila de PRs ($(echo "$abertos" | grep -E 'ATENÇÃO|falhou' | head -1))"
 ./notebook-sync.py --prune || falhou="${falhou:+$falhou e }código"
 ./notebook-estado.py --prune || falhou="${falhou:+$falhou e }estado"
+# Advisory em dependência travada das lanes. Sem Docker (Colima parado) só registra.
+if docker info >/dev/null 2>&1; then
+  adv=$(./run-tests.sh advisories 2>&1)
+  echo "$adv" | grep -E '✗|CHECK ADVISORIES'
+  if echo "$adv" | grep -q "CHECK ADVISORIES: FAIL ("; then
+    falhou="${falhou:+$falhou e }advisory em $(echo "$adv" | grep -c '✗') dependência(s) das lanes"
+  elif ! echo "$adv" | grep -q "CHECK ADVISORIES: PASS ==="; then
+    falhou="${falhou:+$falhou e }checagem de advisories"
+  fi
+else
+  echo "advisories: Docker indisponível; checagem pulada"
+fi
 if [ -n "$falhou" ]; then
   echo "FALHOU: $falhou"
   osascript -e "display notification \"Precisa de atenção: $falhou. Detalhes em dev-local/logs/notebook-auto.log.\" with title \"LabTech automação\"" 2>/dev/null
