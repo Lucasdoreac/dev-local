@@ -60,14 +60,20 @@ cd ~/LABTECH/dev-local && ./check-lanes.py   # deve passar com o novo SHA
 
    ```bash
    git -C ~/LABTECH/<repo> fetch origin
-   git -C ~/LABTECH/<repo> worktree add .worktrees/<id> -b <branch> <SHA do pai>
+   git -C ~/LABTECH/<repo> worktree add --no-track .worktrees/<id> -b <branch> <SHA do pai>
    git -C ~/LABTECH/<repo> config extensions.worktreeConfig true
    git -C ~/LABTECH/<repo>/.worktrees/<id> config --worktree push.default upstream
    ```
 
+   Use o SHA do pai, não o nome da branch dele, e `--no-track`: uma branch nova
+   que herda o upstream do pai, com `push.default=upstream`, publica no PR do pai
+   no primeiro `git push` sem argumentos. Antes do primeiro push, confira com
+   `git -C <worktree> rev-parse --abbrev-ref @{upstream}` (deve falhar ou ser
+   `fork/<branch>`).
 3. Acrescente a lane a `lanes.json` (`id`, `repo`, `pr`, `base`, `parents`,
    `worktree`, `local_branch`, `fork_branch`, `compose`) por PR em
-   `Lucasdoreac/dev-local`. Se ela entra na pilha, ajuste o Compose junto.
+   `Lucasdoreac/dev-local`. Se ela entra na pilha, ajuste o Compose junto. Draft
+   empilhado numa lane leva `"compose": {}`, `"draft": true` e `"notebook": false`.
 4. Depois da validação integrada: `git push -u fork <branch>` e PR do fork para
    a base da organização. Lane com pai ainda não mesclado carrega os commits do
    pai; diga isso no PR ou espere o merge do pai.
