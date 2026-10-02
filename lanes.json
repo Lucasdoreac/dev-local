@@ -226,6 +226,19 @@
       "compose": {},
       "draft": true,
       "notebook": false
+    },
+    {
+      "id": "api-forward",
+      "repo": "python-services",
+      "pr": 77,
+      "base": "main",
+      "parents": ["api"],
+      "worktree": "python-services/.worktrees/g0c-api-forward",
+      "local_branch": "fix/auth-forward-client",
+      "fork_branch": "fix/auth-forward-client",
+      "compose": {},
+      "draft": true,
+      "notebook": false
     }
   ]
 }
