@@ -31,6 +31,25 @@ repo com várias lanes, só as pastas de cada serviço), e o hook de push
 sincroniza apenas a lane cuja branch do fork recebeu o commit. Lane com `"notebook": false`
 (por exemplo, só o Dockerfile sobre outra lane) não vira fonte do caderno.
 
+## Advisories e o limite da main
+
+`./run-tests.sh advisories` roda `check-advisories.py` no runner Docker: primeiro
+um self-test (o OSV precisa acusar pinos vulneráveis conhecidos), depois uma
+consulta OSV de todas as versões travadas nas locks de cada lane (só as locks que
+a lane altera; em `shared-resources` cada lane traz a lock do serviço irmão como
+está na main da org). Sai 1 com achado e 2 se a consulta falhar. O LaunchAgent
+roda a checagem a cada 3 h e notifica achados; sem Docker, só registra no log.
+
+Advisory em pacote marcado `[BLOQUEADO PELO PAI]` (faixa do pai impede o bump):
+
+1. Confirmar o advisory (OSV/GHSA), versão corrigida, alcance no código e se é
+   runtime ou só build; registrar em `reports/VULNERABILIDADES.csv`.
+2. Web: fixar a versão corrigida com `resolutions` no `package.json` da lane Web
+   e `yarn install`; Python: preferir versão corrigida aceita pelo pai; se não
+   existir, fork corrigido do pai em lane própria, nunca editar o lock à mão.
+3. Validar o conjunto em Docker `linux/amd64` (suítes, build, smoke e E2E real)
+   e publicar pela skill `pr-lane`, dizendo no PR que excede a faixa do pai.
+
 ## Compose local
 
 `compose.yaml` define a pilha compartilhada; `compose.override.yaml` seleciona as
