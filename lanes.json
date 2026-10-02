@@ -330,6 +330,19 @@
       "compose": {},
       "draft": true,
       "notebook": false
+    },
+    {
+      "id": "api-change-email",
+      "repo": "python-services",
+      "pr": 81,
+      "base": "main",
+      "parents": ["api-change-request"],
+      "worktree": "python-services/.worktrees/g11-change-email",
+      "local_branch": "feat/35-request-changes-email",
+      "fork_branch": "feat/35-request-changes-email",
+      "compose": {},
+      "draft": true,
+      "notebook": false
     }
   ]
 }
