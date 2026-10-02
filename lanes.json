@@ -73,6 +73,30 @@
       "notebook": false
     },
     {
+      "id": "auth-alpine",
+      "repo": "shared-resources",
+      "pr": 34,
+      "base": "main",
+      "parents": ["auth-runtime"],
+      "worktree": "shared-resources/.worktrees/auth-alpine",
+      "local_branch": "chore/auth-alpine-runtime",
+      "fork_branch": "chore/auth-alpine-runtime",
+      "compose": {},
+      "notebook": false
+    },
+    {
+      "id": "catalog-alpine",
+      "repo": "shared-resources",
+      "pr": 35,
+      "base": "main",
+      "parents": ["catalog-runtime"],
+      "worktree": "shared-resources/.worktrees/catalog-alpine",
+      "local_branch": "chore/catalog-alpine-runtime",
+      "fork_branch": "chore/catalog-alpine-runtime",
+      "compose": {},
+      "notebook": false
+    },
+    {
       "id": "web",
       "repo": "interfaces-usuario",
       "pr": 41,

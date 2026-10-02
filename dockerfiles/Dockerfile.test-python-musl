@@ -1,0 +1,12 @@
+# Runner de testes musl (Alpine) para Auth e Catálogo: mesmo libc das imagens
+# Alpine candidatas. Digest filho amd64 oficial de python:3.14.8-alpine.
+FROM python:3.14.8-alpine@sha256:7f2ec713f0436c59df2362d973b6a05af9e87ba78f0e94f5245c302984a7a1fd
+
+ARG POETRY_VERSION=2.4.1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Ferramentas nativas só no runner descartável, para locks sem wheel musllinux.
+RUN apk upgrade --no-cache \
+    && apk add --no-cache build-base libffi-dev openssl-dev pkgconf tar
+
+RUN python -m pip install --no-cache-dir "poetry==${POETRY_VERSION}"
