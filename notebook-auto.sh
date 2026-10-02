@@ -4,7 +4,8 @@
 #   1. reports/prs/gerar.py          fila, textos dos PRs, fila.json e pendencias.json
 #   2. publica estagio-publico/data   commit + push só de data/ (dados gerados, sem nomes);
 #                                     o push dispara a Action que atualiza o quadro
-#   3. abrir-proximos.py             abre o próximo PR de cada repo quando o anterior recebe merge
+#   (abrir-proximos.py, que abria o próximo PR da fila antiga, foi aposentado:
+#    a fila de reports/prs é anterior aos PRs atuais e não deve ser publicada)
 #   4. notebook-sync.py --prune      código das branches de trabalho (só sobe o que mudou)
 #   5. notebook-estado.py --prune    fonte "estado e fila" gerada dos dados
 #   6. run-tests.sh advisories       OSV nas locks das lanes (Docker); achado = notificação
@@ -56,15 +57,6 @@ if [ -z "$falhou" ] && [ -n "$(git -C "$SITE" status --porcelain -- data)" ]; th
     falhou="site"
   fi
 fi
-# Próximo PR de cada repositório abre sozinho quando o anterior recebe merge.
-abertos=$(./abrir-proximos.py 2>&1); rc=$?
-echo "$abertos"
-novos=$(echo "$abertos" | sed -n 's/^\([a-z-]*\): abre \([A-Z]*-[0-9]*\).*/\2/p' | xargs)
-if [ -n "$novos" ]; then
-  gh workflow run sync-quadro.yml --repo Lucasdoreac/estagio-publico >/dev/null 2>&1
-  osascript -e "display notification \"PR aberto automaticamente: $novos\" with title \"LabTech fila\"" 2>/dev/null
-fi
-[ $rc -eq 0 ] || falhou="${falhou:+$falhou e }fila de PRs ($(echo "$abertos" | grep -E 'ATENÇÃO|falhou' | head -1))"
 ./notebook-sync.py --prune || falhou="${falhou:+$falhou e }código"
 ./notebook-estado.py --prune || falhou="${falhou:+$falhou e }estado"
 # Advisory em dependência travada das lanes. Sem Docker (Colima parado) só registra.
