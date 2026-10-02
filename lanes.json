@@ -49,6 +49,30 @@
       "compose": {"auth": "auth_service"}
     },
     {
+      "id": "auth-runtime",
+      "repo": "shared-resources",
+      "pr": 32,
+      "base": "main",
+      "parents": ["auth"],
+      "worktree": "shared-resources/.worktrees/auth-runtime-build-tools",
+      "local_branch": "chore/auth-runtime-build-tools",
+      "fork_branch": "chore/auth-runtime-build-tools",
+      "compose": {},
+      "notebook": false
+    },
+    {
+      "id": "catalog-runtime",
+      "repo": "shared-resources",
+      "pr": 33,
+      "base": "main",
+      "parents": ["catalog"],
+      "worktree": "shared-resources/.worktrees/catalog-runtime-build-tools",
+      "local_branch": "chore/catalog-runtime-build-tools",
+      "fork_branch": "chore/catalog-runtime-build-tools",
+      "compose": {},
+      "notebook": false
+    },
+    {
       "id": "web",
       "repo": "interfaces-usuario",
       "pr": 41,
