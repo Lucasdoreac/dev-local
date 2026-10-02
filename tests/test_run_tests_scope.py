@@ -121,7 +121,7 @@ esac
 
             docker_calls = command_log.read_text()
             test_dockerfile = (ROOT / "dockerfiles/Dockerfile.test-python").read_text()
-            self.assertIn("labtech-dev-runner-python:3.14.7", docker_calls)
+            self.assertIn("labtech-dev-runner-python:3.14.8", docker_calls)
             self.assertNotIn("python:3.12-slim", docker_calls)
             self.assertIn(":/root/.cache/pypoetry", docker_calls)
             self.assertIn(":/root/.cache/pip", docker_calls)

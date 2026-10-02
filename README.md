@@ -79,7 +79,7 @@ de `yarn test` dentro do container `reservas`; não usa Node/Yarn do host.
 O runner lê as fontes de API, Auth e Catálogo da configuração resolvida pelo
 Compose e usa os mesmos checkouts. `PYTHON_SERVICES_DIR`, `AUTH_SERVICE_DIR` e
 `INTERNAL_APIS_DIR` podem selecionar outra worktree; a seleção também vale para
-os mounts do Compose. Os locks atuais desses branches pedem Python 3.14.7. Para builds de
+os mounts do Compose. Os locks atuais desses branches pedem Python 3.14.8. Para builds de
 dependências nativas nessa versão, o runner prepara uma imagem reutilizável com
 compilador, headers de `libffi`/OpenSSL e `pkg-config`; essas ferramentas ficam
 fora das imagens de aplicação.
@@ -88,15 +88,15 @@ Exemplos para validar os branches de refresh:
 
 ```sh
 PYTHON_SERVICES_DIR=~/LABTECH/python-services/.worktrees/approval-security-hardening \
-PYTHON_SERVICES_TEST_IMAGE=labtech-dev-runner-python:3.14.7-amd64 \
+PYTHON_SERVICES_TEST_IMAGE=labtech-dev-runner-python:3.14.8-amd64 \
 ./run-tests.sh python
 
 INTERNAL_APIS_DIR=~/LABTECH/shared-resources/.worktrees/pr30-without-weekdays/internal_apis \
-INTERNAL_APIS_TEST_IMAGE=labtech-dev-runner-python:3.14.7-amd64 \
+INTERNAL_APIS_TEST_IMAGE=labtech-dev-runner-python:3.14.8-amd64 \
 ./run-tests.sh internal
 ```
 
-O runner constrói a imagem Python 3.14.7 na primeira validação que precisa
+O runner constrói a imagem Python 3.14.8 na primeira validação que precisa
 dela. Em rede restrita, configure `DEV_TEST_PROXY` conforme abaixo.
 
 No perfil Colima atual, os containers resolvem os endereços IPv4 do PyPI, mas

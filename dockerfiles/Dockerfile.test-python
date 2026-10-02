@@ -1,7 +1,7 @@
 FROM --platform=linux/amd64 docker:cli@sha256:b1805116a6a86cc591b5d5f60a910a0715cdcc9d18d866ad68b1457ead25c35c AS docker_cli
 
 # Pin the official Python amd64 child manifest to avoid reusing another platform.
-FROM python:3.14.7-slim@sha256:7bf6c3111fe094f8ee1a1cbcdc63c4cfb345b0e3df42d5aa9a90b3b4b022ab6d
+FROM python:3.14.8-slim@sha256:65a94bb37b630c482dfd31e5fb9b449cb26c31eab1b7a125cd6bd624acfe3b30
 
 ARG POETRY_VERSION=2.4.1
 ARG DEBIAN_FRONTEND=noninteractive
