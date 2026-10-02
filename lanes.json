@@ -200,6 +200,19 @@
       "compose": {},
       "draft": true,
       "notebook": false
+    },
+    {
+      "id": "catalog-readonly",
+      "repo": "shared-resources",
+      "pr": 37,
+      "base": "main",
+      "parents": ["catalog"],
+      "worktree": "shared-resources/.worktrees/g0c-catalog-readonly",
+      "local_branch": "fix/catalog-read-only",
+      "fork_branch": "fix/catalog-read-only",
+      "compose": {},
+      "draft": true,
+      "notebook": false
     }
   ]
 }
