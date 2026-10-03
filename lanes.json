@@ -408,6 +408,19 @@
       "compose": {},
       "draft": true,
       "notebook": false
+    },
+    {
+      "id": "e2e-logged-in",
+      "repo": "supreme-test-framework",
+      "pr": 5,
+      "base": "master",
+      "parents": ["e2e-selectors"],
+      "worktree": "supreme-test-framework/.worktrees/e2e-logged-in",
+      "local_branch": "test/e2e-logged-in-screens",
+      "fork_branch": "test/e2e-logged-in-screens",
+      "compose": {},
+      "draft": true,
+      "notebook": false
     }
   ]
 }
