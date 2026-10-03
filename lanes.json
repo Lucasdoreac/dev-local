@@ -462,6 +462,19 @@
       "notebook": false
     },
     {
+      "id": "api-recipient-allowlist",
+      "repo": "python-services",
+      "pr": 85,
+      "base": "main",
+      "parents": ["api-recipients"],
+      "worktree": "python-services/.worktrees/api-recipient-allowlist",
+      "local_branch": "feat/api-recipient-allowlist",
+      "fork_branch": "feat/api-recipient-allowlist",
+      "compose": {},
+      "draft": true,
+      "notebook": false
+    },
+    {
       "id": "web-server-logout",
       "repo": "interfaces-usuario",
       "pr": 53,
