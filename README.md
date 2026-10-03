@@ -173,6 +173,36 @@ E2E_FRAMEWORK_DIR=~/LABTECH/.worktrees/e2e-pr3-without-offers \
   `docker compose up -d --no-build <serviço>` (ou `restart`) basta; `--build` com a VM
   disputada por outras sessões pode demorar dezenas de minutos sem necessidade.
 
+### Modo resiliência dos Drafts (cenários que param a API/o Auth ou usam duas abas)
+
+Opt-in; sem as variáveis o E2E é o de sempre (sem socket do Docker, sem parar serviço). Roda com
+`E2E_BEHAVE_ARGS="--tags=drafts"` (ou `--tags=drafts --tags=rooms`, um cenário só) e o Web estático:
+
+```sh
+cd ~/LABTECH/dev-local
+E2E_WEB_MODE=static RESERVAS_WEB_DIR=<worktree do Web> \
+E2E_FRAMEWORK_DIR=<worktree do framework> \
+E2E_BEHAVE_ARGS="--tags=drafts" \
+E2E_ALLOW_SERVICE_CONTROL=1 \
+E2E_TREAT_ORIGIN_AS_SECURE=http://labtech-e2e-web:3000 \
+./run-tests.sh e2e
+```
+
+- `E2E_ALLOW_SERVICE_CONTROL=1` monta o socket do Docker **só no runner do E2E** e deixa o framework parar e
+  religar `api` e `auth` (nenhum outro serviço) do projeto Compose `E2E_COMPOSE_PROJECT` (padrão: o projeto
+  da rede `labtech-dev_default`). Cada cenário religa o que parou, mesmo quando falha.
+- `E2E_TREAT_ORIGIN_AS_SECURE=<origem do Web>` faz o Chrome tratar essa origem HTTP como segura; sem isso
+  `navigator.locks` não existe e o cenário das duas abas (#47) mede o Web sem o lock. Production é HTTPS.
+- A API da pilha precisa servir `/auth/logout` (cenário do Sair): suba `api` e `auth` das worktrees de
+  integração, com `PYTHON_SERVICES_DIR=<integration-api> AUTH_SERVICE_DIR=<integration-auth>/auth_service
+  docker compose up -d --no-build api auth`, e volte ao padrão ao fim (`up -d --no-build api auth` sem as variáveis).
+- Antes: backup validado do Mongo (`mongodump --archive --gzip` e `mongorestore --dryRun`). Entre execuções: o
+  Auth aceita 3 pedidos de link por e-mail a cada 15 min e conta falhas de validação; apague as chaves
+  `flask_cache_rl:*` do Redis local (`redis-cli --scan --pattern 'flask_cache_rl:*'`, só na pilha local) e
+  confirme que `authentications` não tem registro do e-mail sintético, ou o runner aborta.
+- Resíduo conhecido: o cenário que envia o pedido gera um PDF; o documento em `pdfs` é removido pelo framework,
+  mas o objeto no MinIO local (`labtech/reservation-pd…`) fica. Não afeta o Mongo nem outros projetos.
+
 O runner inicia temporariamente o frontend E2E, `selenium/standalone-chrome`
 e o Python/Behave como containers na rede Docker do Compose. O browser e os
 testes encontram o frontend pelo alias efêmero da execução e a API pelo alias
