@@ -335,8 +335,27 @@ run_framework_e2e() (
     "$CHROME_IMAGE" >/dev/null || return 1
   trap cleanup_e2e EXIT
 
+  # Modo resiliência (opt-in, padrão desligado): os cenários @drafts que param a API/o Auth precisam do socket
+  # do Docker, montado só aqui e só com E2E_ALLOW_SERVICE_CONTROL=1. O framework só pode parar api e auth do
+  # projeto Compose informado (padrão: o da rede $DEV_NETWORK) e religa o que parou ao fim de cada cenário.
+  local resilience_args=()
+  if [[ "${E2E_ALLOW_SERVICE_CONTROL:-}" == "1" ]]; then
+    local compose_project="${E2E_COMPOSE_PROJECT:-$(docker network inspect "$DEV_NETWORK" \
+      --format '{{index .Labels "com.docker.compose.project"}}' 2>/dev/null)}"
+    [[ -n "$compose_project" ]] || {
+      echo "[supreme-test-framework] E2E_COMPOSE_PROJECT não definido e não deduzido da rede $DEV_NETWORK" >&2
+      return 1
+    }
+    echo "[supreme-test-framework] controle de serviços ligado: o runner recebe o socket do Docker (projeto $compose_project)"
+    resilience_args+=(-v /var/run/docker.sock:/var/run/docker.sock
+      -e E2E_ALLOW_SERVICE_CONTROL=1 -e "E2E_COMPOSE_PROJECT=$compose_project")
+  fi
+  # navigator.locks só existe em contexto seguro; em HTTP na rede Docker o Chrome precisa tratar a origem do Web
+  # como segura (Production é HTTPS). Passe a origem, ex.: E2E_TREAT_ORIGIN_AS_SECURE=http://labtech-e2e-web:3000.
+  [[ -z "${E2E_TREAT_ORIGIN_AS_SECURE:-}" ]] || resilience_args+=(-e "E2E_TREAT_ORIGIN_AS_SECURE=$E2E_TREAT_ORIGIN_AS_SECURE")
+
   echo "[supreme-test-framework] E2E na rede Docker por aliases de serviço; conta sintética isolada"
-  docker run --platform "$DOCKER_PLATFORM" --rm --network "$DEV_NETWORK" "${PROXY_ARGS[@]}" \
+  docker run --platform "$DOCKER_PLATFORM" --rm --network "$DEV_NETWORK" "${PROXY_ARGS[@]}" ${resilience_args[@]+"${resilience_args[@]}"} \
     "${PYTHON_CACHE_ARGS[@]}" "${PYTHON_CACHE_ENVS[@]}" \
     -v "$FRAMEWORK_SOURCE:/source:ro" \
     -e SELENIUM_REMOTE_URL="http://$chrome_name:4444/wd/hub" \
