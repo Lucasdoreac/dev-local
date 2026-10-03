@@ -26,3 +26,5 @@ como um todo coerente. Não abra PR parcial; não faça merge, deploy/produção
 exclusões nem escritas em dados sem solicitação explícita. Envie código pronto
 ao `origin` por branch de revisão, sem deixá-lo apenas local; não faça push
 direto para `main`.
+
+Fontes por serviço vêm de variáveis (`PYTHON_SERVICES_DIR`, `AUTH_SERVICE_DIR`, `INTERNAL_APIS_DIR`, `RESERVAS_WEB_DIR`); o padrão do override é a worktree da lane. Se só o código montado mudou, use `docker compose up -d --no-build`. No E2E, `E2E_WEB_MODE=static` serve o build em vez do dev server (a VM de 4 GB não comporta dev server + Chrome).

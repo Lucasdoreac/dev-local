@@ -305,10 +305,25 @@ run_framework_e2e() (
 
   echo "[supreme-test-framework] iniciando frontend e Chrome efêmeros na rede $DEV_NETWORK"
   trap cleanup_e2e EXIT
-  docker compose run -d --no-deps --name "$web_name" \
-    -e VITE_API_BASE_URL=http://api:5000 -e "E2E_HOST=$web_alias" reservas >/dev/null || return 1
-  docker network disconnect "$DEV_NETWORK" "$web_name" || return 1
-  docker network connect --alias "$web_alias" "$DEV_NETWORK" "$web_name" || return 1
+  if [[ "${E2E_WEB_MODE:-dev}" == "static" ]]; then
+    # Build do Web na worktree montada (RESERVAS_WEB_DIR, ou a padrão do override) e servidor
+    # estático: o dev server do Vite junto do Chrome não cabe na VM de 4 GB (timeout do renderer).
+    local web_dir="${RESERVAS_WEB_DIR:-$PWD/../.worktrees/web-email-logo/reservas}"
+    [[ "$web_dir" = /* ]] || web_dir="$PWD/$web_dir"
+    echo "[supreme-test-framework] Web estático: build de $web_dir"
+    docker compose run --rm --no-deps -e VITE_API_BASE_URL=http://api:5000 reservas \
+      sh -ec 'cd /app && yarn install --frozen-lockfile --ignore-scripts && yarn build' >/dev/null || return 1
+    docker run -d --name "$web_name" --platform "$DOCKER_PLATFORM" --network "$DEV_NETWORK" \
+      --network-alias "$web_alias" \
+      -v "$(cd "$web_dir" && pwd)/build/client:/site:ro" \
+      -v "$PWD/serve-static.py:/serve-static.py:ro" \
+      "$LATEST_PYTHON_IMAGE" python /serve-static.py /site 3000 >/dev/null || return 1
+  else
+    docker compose run -d --no-deps --name "$web_name" \
+      -e VITE_API_BASE_URL=http://api:5000 -e "E2E_HOST=$web_alias" reservas >/dev/null || return 1
+    docker network disconnect "$DEV_NETWORK" "$web_name" || return 1
+    docker network connect --alias "$web_alias" "$DEV_NETWORK" "$web_name" || return 1
+  fi
   docker run --platform "$DOCKER_PLATFORM" -d --name "$chrome_name" --network "$DEV_NETWORK" \
     --network-alias "$chrome_name" --shm-size=1g \
     -e SE_NODE_MAX_SESSIONS=1 \

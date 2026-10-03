@@ -155,6 +155,19 @@ E2E_FRAMEWORK_DIR=~/LABTECH/.worktrees/e2e-pr3-without-offers \
 ./run-tests.sh e2e
 ```
 
+### Fontes alternativas e Web estático
+
+- `RESERVAS_WEB_DIR` aponta o serviço `reservas` (e o E2E) para outra worktree do Web, como
+  `PYTHON_SERVICES_DIR`, `AUTH_SERVICE_DIR` e `INTERNAL_APIS_DIR` fazem com os outros serviços
+  (por exemplo, a worktree de integração). Sem a variável vale a worktree da lane do #41.
+- `E2E_WEB_MODE=static ./run-tests.sh e2e` faz o build do Web e o serve com `serve-static.py`
+  em vez do servidor de desenvolvimento do Vite. Na VM Colima de 4 GB o dev server junto do
+  Chrome estoura o renderer (timeout ao abrir a página); o servidor estático quase não custa
+  memória. Padrão (`dev`) inalterado.
+- Só o código montado mudou (API, Auth, Catálogo ou Web em outra worktree, locks iguais):
+  `docker compose up -d --no-build <serviço>` (ou `restart`) basta; `--build` com a VM
+  disputada por outras sessões pode demorar dezenas de minutos sem necessidade.
+
 O runner inicia temporariamente o frontend E2E, `selenium/standalone-chrome`
 e o Python/Behave como containers na rede Docker do Compose. O browser e os
 testes encontram o frontend pelo alias efêmero da execução e a API pelo alias
