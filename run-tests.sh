@@ -345,6 +345,8 @@ run_framework_e2e() (
     -e API_URL=http://api:5000 \
     -e ENV=production \
     -e TEST_EMAIL="$test_email" \
+    -e E2E_BEHAVE_ARGS="${E2E_BEHAVE_ARGS:-}" \
+    -e E2E_MONGO_URI="${E2E_MONGO_URI:-mongodb://mongo:27017}" \
     -e NO_PROXY="$chrome_name,$web_alias,api,127.0.0.1,localhost" \
     -e no_proxy="$chrome_name,$web_alias,api,127.0.0.1,localhost" \
     "$LATEST_PYTHON_IMAGE" sh -ec '
@@ -382,7 +384,10 @@ for label, (url, ready) in targets.items():
     else:
         raise SystemExit(f"{label} não ficou pronto na rede Docker: {url}")
 PY
-      poetry run behave --no-color -D "BASE_URL=$BASE_URL" -D "API_URL=$API_URL"
+      # E2E_BEHAVE_ARGS (vazio por padrão = comportamento inalterado) repassa argumentos ao behave,
+      # por exemplo --tags=drafts; é intencionalmente separado em palavras.
+      # shellcheck disable=SC2086
+      poetry run behave --no-color -D "BASE_URL=$BASE_URL" -D "API_URL=$API_URL" $E2E_BEHAVE_ARGS
     '
 )
 

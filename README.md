@@ -164,6 +164,11 @@ E2E_FRAMEWORK_DIR=~/LABTECH/.worktrees/e2e-pr3-without-offers \
   em vez do servidor de desenvolvimento do Vite. Na VM Colima de 4 GB o dev server junto do
   Chrome estoura o renderer (timeout ao abrir a página); o servidor estático quase não custa
   memória. Padrão (`dev`) inalterado.
+- `E2E_BEHAVE_ARGS` repassa argumentos ao `behave` no E2E (vazio por padrão, comportamento
+  inalterado): `E2E_BEHAVE_ARGS="--tags=drafts"` roda os cenários que só existem nos Drafts do Web
+  (o `behave.ini` do framework os ignora por padrão). `E2E_MONGO_URI` (padrão
+  `mongodb://mongo:27017`) só importa para os cenários que semeiam dados, e a semeadura recusa
+  qualquer host que não seja o Mongo local.
 - Só o código montado mudou (API, Auth, Catálogo ou Web em outra worktree, locks iguais):
   `docker compose up -d --no-build <serviço>` (ou `restart`) basta; `--build` com a VM
   disputada por outras sessões pode demorar dezenas de minutos sem necessidade.
