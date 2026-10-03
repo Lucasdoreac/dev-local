@@ -421,6 +421,45 @@
       "compose": {},
       "draft": true,
       "notebook": false
+    },
+    {
+      "id": "auth-logout",
+      "repo": "shared-resources",
+      "pr": 41,
+      "base": "main",
+      "parents": ["auth-limits"],
+      "worktree": "shared-resources/.worktrees/g34-auth-logout",
+      "local_branch": "feat/auth-logout",
+      "fork_branch": "feat/auth-logout",
+      "compose": {},
+      "draft": true,
+      "notebook": false
+    },
+    {
+      "id": "api-logout",
+      "repo": "python-services",
+      "pr": 83,
+      "base": "main",
+      "parents": ["api"],
+      "worktree": "python-services/.worktrees/g34-api-logout",
+      "local_branch": "feat/api-logout",
+      "fork_branch": "feat/api-logout",
+      "compose": {},
+      "draft": true,
+      "notebook": false
+    },
+    {
+      "id": "web-server-logout",
+      "repo": "interfaces-usuario",
+      "pr": 53,
+      "base": "main",
+      "parents": ["web-logout"],
+      "worktree": ".worktrees/g34-web-logout",
+      "local_branch": "feat/17-server-logout",
+      "fork_branch": "feat/17-server-logout",
+      "compose": {},
+      "draft": true,
+      "notebook": false
     }
   ]
 }
