@@ -449,6 +449,19 @@
       "notebook": false
     },
     {
+      "id": "api-recipients",
+      "repo": "python-services",
+      "pr": 84,
+      "base": "main",
+      "parents": ["api-logout"],
+      "worktree": "python-services/.worktrees/api-recipients",
+      "local_branch": "fix/api-recipients",
+      "fork_branch": "fix/api-recipients",
+      "compose": {},
+      "draft": true,
+      "notebook": false
+    },
+    {
       "id": "web-server-logout",
       "repo": "interfaces-usuario",
       "pr": 53,
