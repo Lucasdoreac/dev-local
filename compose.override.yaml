@@ -26,6 +26,6 @@ services:
 
   reservas:
     volumes:
-      - ../.worktrees/web-email-logo/reservas:/app
+      - ${RESERVAS_WEB_DIR:-../.worktrees/web-email-logo/reservas}:/app
     environment:
       VITE_AUTH_EMAIL_ALLOWLIST: ${DEV_VITE_AUTH_EMAIL_ALLOWLIST:-}
