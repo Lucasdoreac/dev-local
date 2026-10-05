@@ -38,7 +38,15 @@ um self-test (o OSV precisa acusar pinos vulneráveis conhecidos), depois uma
 consulta OSV de todas as versões travadas nas locks de cada lane (só as locks que
 a lane altera; em `shared-resources` cada lane traz a lock do serviço irmão como
 está na main da org). Sai 1 com achado e 2 se a consulta falhar. O LaunchAgent
-roda a checagem a cada 3 h e notifica achados; sem Docker, só registra no log.
+roda a checagem a cada 3 h; sem Docker, registra que a etapa foi pulada.
+
+`dev-local/logs/notebook-auto.log` marca cada etapa com início, fim, código de
+saída, duração e horário local com fuso. Saídas completas das etapas e causas
+de falha aparecem no log e no aviso do macOS. Consultas do `gh` repetem até três
+vezes falhas de transporte, com espera crescente; falhas finais incluem a
+mensagem do CLI e orientação de diagnóstico. Avisos idênticos são limitados a
+um por dia; uma falha nova avisa na hora e uma execução bem sucedida limpa o
+controle local de repetição. O estado fica em `dev-local/logs/`, fora do Git.
 
 Advisory em pacote marcado `[BLOQUEADO PELO PAI]` (faixa do pai impede o bump):
 

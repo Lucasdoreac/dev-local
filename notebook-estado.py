@@ -25,6 +25,7 @@ import pathlib
 import re
 import subprocess
 import sys
+import time
 
 HERE = pathlib.Path(__file__).resolve().parent
 LAB = HERE.parent
@@ -32,6 +33,9 @@ PRS = LAB / "reports" / "prs"
 PENDENCIAS = LAB / "reports" / "notebook-sources" / "pendencias.md"
 TITLE_PREFIX = "LabTech estado: "
 ORG = "LabTechUDF"
+GH_MAX_ATTEMPTS = 3
+GH_RETRY_DELAYS = (2, 5)
+GH_SECRET = re.compile(r"(?i)\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|Bearer\s+[A-Za-z0-9._~+/-]+=*)")
 
 spec = importlib.util.spec_from_file_location("notebook_sync", HERE / "notebook-sync.py")
 sync = importlib.util.module_from_spec(spec)
@@ -66,19 +70,57 @@ def deploy_note(pid):
     return " ".join(m.group(1).split()) if m else ""
 
 
+def gh_json(label, args, *, max_attempts=GH_MAX_ATTEMPTS, sleep=time.sleep):
+    """Executa gh com retry limitado para falhas de transporte e erro visível."""
+    transient_markers = (
+        "tls handshake timeout", "i/o timeout", "connection reset", "connection refused",
+        "temporary failure", "no such host", "unexpected eof", "eof", "timed out",
+        "502", "503", "504", "429", "secondary rate limit",
+    )
+    last_error = ""
+    for attempt in range(1, max_attempts + 1):
+        try:
+            out = subprocess.run(args, capture_output=True, text=True, timeout=120)
+            detail = out.stderr.strip()
+            if out.returncode == 0:
+                if attempt > 1:
+                    print(f"GitHub: {label} respondeu na tentativa {attempt}/{max_attempts}.")
+                return json.loads(out.stdout)
+            last_error = detail or f"gh encerrou com código {out.returncode} sem mensagem de erro"
+            retryable = any(marker in last_error.lower() for marker in transient_markers)
+            exit_detail = f"código {out.returncode}"
+        except subprocess.TimeoutExpired as exc:
+            raw = exc.stderr or "tempo limite de 120 s excedido"
+            if isinstance(raw, bytes):
+                raw = raw.decode("utf-8", errors="replace")
+            last_error = str(raw).strip() or "tempo limite de 120 s excedido"
+            retryable = True
+            exit_detail = "timeout após 120 s"
+
+        last_error = GH_SECRET.sub("[REDACTED]", last_error)
+        if retryable and attempt < max_attempts:
+            delay = GH_RETRY_DELAYS[min(attempt - 1, len(GH_RETRY_DELAYS) - 1)]
+            print(f"GitHub: {label} falhou ({exit_detail}; tentativa {attempt}/{max_attempts}): "
+                  f"{last_error}. Nova tentativa em {delay} s.")
+            sleep(delay)
+            continue
+        advice = ("Verifique a conectividade com api.github.com e repita a automação."
+                  if retryable else "Verifique `gh auth status` e as permissões do repositório.")
+        raise RuntimeError(f"GitHub: {label} falhou ({exit_detail}, tentativa {attempt}/{max_attempts}): "
+                           f"{last_error}. {advice}")
+
+
 def prs_no_github(rows):
     """id da fila -> (estado, número), pela branch do fork de cada linha. Falha do gh = aborta."""
     repos = {r["repo"] for r in rows}
     por_branch = {(r["repo"], r["branch"]): r["id"] for r in rows}
     state = {}
     for repo in sorted(repos):
-        out = subprocess.run(["gh", "pr", "list", "--repo", f"{ORG}/{repo}", "--state", "all",
-                              "--author", "@me", "--limit", "100",
-                              "--json", "number,headRefName,state"],
-                             capture_output=True, text=True, timeout=120)
-        if out.returncode != 0:
-            raise RuntimeError(f"gh pr list {repo} falhou")
-        for pr in json.loads(out.stdout):
+        prs = gh_json(f"listar PRs de {ORG}/{repo}",
+                      ["gh", "pr", "list", "--repo", f"{ORG}/{repo}", "--state", "all",
+                       "--author", "@me", "--limit", "100",
+                       "--json", "number,headRefName,state"])
+        for pr in prs:
             pid = por_branch.get((repo, pr["headRefName"]))
             if pid and pid not in state:  # o mais recente vem primeiro
                 state[pid] = (pr["state"].lower(), pr["number"])
@@ -87,12 +129,10 @@ def prs_no_github(rows):
 
 def pendencias_resolvidas():
     """Números das pendências cujo cartão [D-n] foi fechado no quadro público."""
-    out = subprocess.run(["gh", "issue", "list", "--repo", "Lucasdoreac/estagio-publico", "--label", "pendencia",
-                          "--state", "closed", "--limit", "100", "--json", "title"],
-                         capture_output=True, text=True, timeout=120)
-    if out.returncode != 0:
-        raise RuntimeError("gh issue list (pendências) falhou")
-    return [m.group(1) for i in json.loads(out.stdout) if (m := re.match(r"\[D-(\d+)\]", i["title"]))]
+    issues = gh_json("listar pendências fechadas de Lucasdoreac/estagio-publico",
+                     ["gh", "issue", "list", "--repo", "Lucasdoreac/estagio-publico", "--label", "pendencia",
+                      "--state", "closed", "--limit", "100", "--json", "title"])
+    return [m.group(1) for i in issues if (m := re.match(r"\[D-(\d+)\]", i["title"]))]
 
 
 ESTADO = {"open": "aberto, em revisão", "merged": "mergeado", "closed": "fechado sem merge"}

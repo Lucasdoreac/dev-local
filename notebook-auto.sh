@@ -40,9 +40,36 @@ export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 cd "$HERE"
 mkdir -p logs
 exec >> logs/notebook-auto.log 2>&1
-echo "=== $(date '+%F %T')"
+echo "=== $(date '+%Y-%m-%dT%H:%M:%S%z') pid=$$ ==="
 falhou=""
-python3 ../reports/prs/gerar.py || falhou="fila"
+alertas=""
+LAST_STEP_DETAIL=""
+run_logged_step() {
+  local label="$1" started ended status output
+  shift
+  started=$(date +%s)
+  echo "ETAPA início: $label em $(date '+%Y-%m-%dT%H:%M:%S%z')"
+  output=$("$@" 2>&1)
+  status=$?
+  if [ -n "$output" ]; then printf '%s\n' "$output"; fi
+  ended=$(date +%s)
+  echo "ETAPA fim: $label status=$status duração=$((ended - started))s em $(date '+%Y-%m-%dT%H:%M:%S%z')"
+  LAST_STEP_DETAIL=""
+  if [ "$status" -ne 0 ]; then
+    LAST_STEP_DETAIL=$(printf '%s\n' "$output" | grep -E '^(ABORTADO:|GitHub:|=== CHECK ADVISORIES: ERRO|FALHOU:)' | tail -n 1)
+    if [ -z "$LAST_STEP_DETAIL" ]; then LAST_STEP_DETAIL=$(printf '%s\n' "$output" | tail -n 1); fi
+    LAST_STEP_DETAIL=$(printf '%s' "$LAST_STEP_DETAIL" | tr '\n' ' ' | cut -c 1-220)
+  fi
+  return "$status"
+}
+record_failure() {
+  local name="$1"
+  falhou="${falhou:+$falhou e }$name"
+  if [ -n "$LAST_STEP_DETAIL" ]; then
+    alertas="${alertas:+$alertas; }$LAST_STEP_DETAIL"
+  fi
+}
+run_logged_step "fila de PRs" python3 ../reports/prs/gerar.py || record_failure "fila"
 SITE=../estagio-publico
 if [ -z "$falhou" ] && [ -n "$(git -C "$SITE" status --porcelain -- data)" ]; then
   # Dados públicos: nada de e-mail, @conta ou nome do dono antes de publicar.
@@ -57,23 +84,53 @@ if [ -z "$falhou" ] && [ -n "$(git -C "$SITE" status --porcelain -- data)" ]; th
     falhou="site"
   fi
 fi
-./notebook-sync.py --prune || falhou="${falhou:+$falhou e }código"
-./notebook-estado.py --prune || falhou="${falhou:+$falhou e }estado"
+run_logged_step "sincronização do caderno" ./notebook-sync.py --prune || record_failure "código"
+run_logged_step "estado e fila" ./notebook-estado.py --prune || record_failure "estado"
 # Advisory em dependência travada das lanes. Sem Docker (Colima parado) só registra.
 if docker info >/dev/null 2>&1; then
+  adv_started=$(date +%s)
+  echo "ETAPA início: checagem de advisories (runner Docker linux/amd64) em $(date '+%Y-%m-%dT%H:%M:%S%z')"
   adv=$(./run-tests.sh advisories 2>&1)
-  echo "$adv" | grep -E '✗|CHECK ADVISORIES'
+  adv_status=$?
+  printf '%s\n' "$adv"
+  echo "ETAPA fim: checagem de advisories status=$adv_status duração=$(($(date +%s) - adv_started))s em $(date '+%Y-%m-%dT%H:%M:%S%z')"
   if echo "$adv" | grep -q "CHECK ADVISORIES: FAIL ("; then
     falhou="${falhou:+$falhou e }advisory em $(echo "$adv" | grep -c '✗') dependência(s) das lanes"
+    LAST_STEP_DETAIL=$(printf '%s\n' "$adv" | grep '^   ✗' | head -n 1 | cut -c 1-220)
+    [ -n "$LAST_STEP_DETAIL" ] && alertas="${alertas:+$alertas; }$LAST_STEP_DETAIL"
   elif ! echo "$adv" | grep -q "CHECK ADVISORIES: PASS ==="; then
     falhou="${falhou:+$falhou e }checagem de advisories"
+    LAST_STEP_DETAIL=$(printf '%s\n' "$adv" | grep -E '^=== CHECK ADVISORIES: ERRO|^ERROR|^Error|^Traceback' | tail -n 1 | cut -c 1-220)
+    [ -n "$LAST_STEP_DETAIL" ] && alertas="${alertas:+$alertas; }$LAST_STEP_DETAIL"
   fi
 else
-  echo "advisories: Docker indisponível; checagem pulada"
+  echo "ETAPA pulada: advisories; Docker indisponível (nenhuma consulta foi executada)"
 fi
 if [ -n "$falhou" ]; then
-  echo "FALHOU: $falhou"
-  osascript -e "display notification \"Precisa de atenção: $falhou. Detalhes em dev-local/logs/notebook-auto.log.\" with title \"LabTech automação\"" 2>/dev/null
+  echo "FALHOU: $falhou${alertas:+ — $alertas}"
+  notification="Precisa de atenção: $falhou${alertas:+ — $alertas}. Detalhes em dev-local/logs/notebook-auto.log."
+  alert_state=logs/notebook-auto-alert.state
+  fingerprint=$(printf '%s' "$falhou|$alertas" | shasum -a 256 | awk '{print $1}')
+  now=$(date +%s)
+  previous_fingerprint=""
+  previous_time=0
+  if [ -r "$alert_state" ]; then read -r previous_fingerprint previous_time < "$alert_state"; fi
+  alert_age=-1
+  if [[ "$previous_time" =~ ^[0-9]+$ ]]; then alert_age=$((now - previous_time)); fi
+  if [ "$fingerprint" = "$previous_fingerprint" ] \
+      && [ "$alert_age" -ge 0 ] \
+      && [ "$alert_age" -lt 86400 ]; then
+    echo "NOTIFICAÇÃO suprimida: mesma falha já avisada há ${alert_age}s; repetição após 24 h."
+  else
+    if osascript -e 'on run argv' -e 'display notification (item 1 of argv) with title "LabTech automação"' -e 'end run' "$notification" 2>/dev/null; then
+      printf '%s %s\n' "$fingerprint" "$now" > "$alert_state.tmp.$$" \
+        && mv "$alert_state.tmp.$$" "$alert_state"
+      echo "NOTIFICAÇÃO enviada: nova falha ou lembrete diário."
+    else
+      echo "NOTIFICAÇÃO indisponível: osascript não conseguiu entregar o alerta."
+    fi
+  fi
   exit 1
 fi
-echo "ok"
+rm -f logs/notebook-auto-alert.state
+echo "EXECUÇÃO OK"
