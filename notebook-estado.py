@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fonte "estado e fila" do caderno Darlas 2022, gerada SÓ a partir de dados.
+"""Fonte de estado atual do caderno Darlas 2022, gerada só a partir de dados.
 
 Modelo aprovado pelo dono em 25/09/2026: nenhum texto livre é escrito aqui; a
 fonte junta o que já é medido ou versionado:
@@ -7,7 +7,8 @@ fonte junta o que já é medido ou versionado:
   * reports/prs/verificacao.txt (suíte medida na ponta de cada PR);
   * estado real de cada PR no GitHub (gh: aberto / mergeado / fechado);
   * SOURCES do notebook-sync.py (lane de PR de cada fonte de código);
-  * reports/notebook-sources/pendencias.md (lista curada de pendências).
+  * deploys live dos oito serviços Reservas consultados diretamente no Render;
+  * última ronda registrada em MISSAO.md, com a data original preservada.
 
 Igual ao notebook-sync.py: lê o caderno antes (sessão expirada = aborta sem
 tocar em nada), sobe a versão nova e só então, com --prune, apaga as versões
@@ -18,6 +19,7 @@ está no caderno = não sobe nada (o título leva um hash do conteúdo).
     ./notebook-estado.py --prune       # sobe e apaga a versão anterior
 """
 import argparse
+from datetime import datetime, timezone
 import hashlib
 import importlib.util
 import json
@@ -30,9 +32,18 @@ import time
 HERE = pathlib.Path(__file__).resolve().parent
 LAB = HERE.parent
 PRS = LAB / "reports" / "prs"
-PENDENCIAS = LAB / "reports" / "notebook-sources" / "pendencias.md"
 TITLE_PREFIX = "LabTech estado: "
 ORG = "LabTechUDF"
+RENDER_TARGETS = (
+    ("Production", "reservas-api", "API"),
+    ("Production", "reservas-auth", "Auth"),
+    ("Production", "reservas-catalog", "Catálogo"),
+    ("Production", "reservas-web", "Web"),
+    ("Staging", "reservas-staging-api", "API"),
+    ("Staging", "reservas-staging-auth", "Auth"),
+    ("Staging", "reservas-staging-catalog", "Catálogo"),
+    ("Staging", "reservas-staging-web", "Web"),
+)
 GH_MAX_ATTEMPTS = 3
 GH_RETRY_DELAYS = (2, 5)
 GH_SECRET = re.compile(r"(?i)\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|Bearer\s+[A-Za-z0-9._~+/-]+=*)")
@@ -119,20 +130,89 @@ def prs_no_github(rows):
         prs = gh_json(f"listar PRs de {ORG}/{repo}",
                       ["gh", "pr", "list", "--repo", f"{ORG}/{repo}", "--state", "all",
                        "--author", "@me", "--limit", "100",
-                       "--json", "number,headRefName,state"])
+                       "--json", "number,headRefName,headRefOid,state"])
         for pr in prs:
             pid = por_branch.get((repo, pr["headRefName"]))
             if pid and pid not in state:  # o mais recente vem primeiro
-                state[pid] = (pr["state"].lower(), pr["number"])
+                state[pid] = (pr["state"].lower(), pr["number"],
+                              pr["headRefName"], pr["headRefOid"])
     return state
 
 
-def pendencias_resolvidas():
-    """Números das pendências cujo cartão [D-n] foi fechado no quadro público."""
-    issues = gh_json("listar pendências fechadas de Lucasdoreac/estagio-publico",
-                     ["gh", "issue", "list", "--repo", "Lucasdoreac/estagio-publico", "--label", "pendencia",
-                      "--state", "closed", "--limit", "100", "--json", "title"])
-    return [m.group(1) for i in issues if (m := re.match(r"\[D-(\d+)\]", i["title"]))]
+def render_json(label, args, run=None):
+    """Lê metadados do Render sem registrar config/env nem o JSON bruto."""
+    run = run or subprocess.run
+    try:
+        out = run(args, capture_output=True, text=True, timeout=120)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"Render: {label} excedeu 120 s") from exc
+    except OSError as exc:
+        raise RuntimeError(f"Render: {label} não pôde iniciar ({exc.__class__.__name__})") from exc
+    if out.returncode != 0:
+        detail = GH_SECRET.sub("[REDACTED]", out.stderr.strip())
+        raise RuntimeError(f"Render: {label} falhou (código {out.returncode}): "
+                           f"{detail or 'sem mensagem do CLI'}")
+    try:
+        return json.loads(out.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Render: {label} retornou JSON inválido") from exc
+
+
+def render_snapshot(prs=None, run=None):
+    """Resume os últimos deploys live dos oito serviços, consultados agora."""
+    run = run or subprocess.run
+    records = render_json("listar serviços", ["render", "services", "--output", "json"], run)
+    available = {}
+    for record in records:
+        service = record.get("service", {})
+        environment = record.get("environment", {}).get("name")
+        key = (environment, service.get("name"))
+        if key in {(env, name) for env, name, _ in RENDER_TARGETS}:
+            available[key] = service
+
+    lines = ["## Render — deploys consultados nesta execução", ""]
+    pr_by_branch = {details[2]: (pid, details) for pid, details in (prs or {}).items()}
+    missing = []
+    for environment, name, label in RENDER_TARGETS:
+        service = available.get((environment, name))
+        if not service:
+            missing.append(f"{environment}/{name}")
+            continue
+        deploys = render_json(f"listar deploys de {environment}/{name}",
+                              ["render", "deploys", "list", service["id"], "--output", "json"], run)
+        live = next((deploy for deploy in deploys if deploy.get("status") == "live"), None)
+        latest = deploys[0] if deploys else None
+        sha = (live or {}).get("commit", {}).get("id", "")
+        detail = f"live `{sha[:7]}`" if sha else "sem deploy live"
+        if latest and latest.get("status") != "live":
+            latest_sha = latest.get("commit", {}).get("id", "")[:7]
+            detail += f"; último deploy `{latest.get('status')}`" + (f" em `{latest_sha}`" if latest_sha else "")
+        auto = "ligado" if service.get("autoDeploy") == "yes" else "desligado"
+        branch = service.get("branch") or "sem branch declarada"
+        relation = ""
+        current_pr = pr_by_branch.get(branch)
+        if current_pr:
+            pid, (state, number, _, head_sha) = current_pr
+            if sha and sha == head_sha:
+                relation = f"; live SHA coincide com o head atual do PR {pid} (#{number}, {state})"
+            else:
+                relation = f"; PR {pid} (#{number}, {state}) tem head `{head_sha[:7]}`, " \
+                           "diferente do SHA live"
+        lines.append(f"- {environment} {label}: {detail}; branch configurada `{branch}`; "
+                     f"auto-deploy {auto}{relation}.")
+    if missing:
+        raise RuntimeError("Render: serviços Reservas ausentes na consulta: " + ", ".join(missing))
+    return lines
+
+
+def latest_mission_round():
+    """Último resumo/ação registrado no quadro; preserva sua própria data."""
+    path = LAB / "MISSAO.md"
+    text = path.read_text() if path.exists() else ""
+    match = re.search(r"^## Última ronda\s*\n(.*?)(?=^## |\Z)", text, re.S | re.M)
+    if not match:
+        return "Sem última ronda registrada no quadro MISSAO.md."
+    return " ".join(match.group(1).split())
 
 
 ESTADO = {"open": "aberto, em revisão", "merged": "mergeado", "closed": "fechado sem merge"}
@@ -141,19 +221,28 @@ ESTADO = {"open": "aberto, em revisão", "merged": "mergeado", "closed": "fechad
 def build():
     rows, verif = fila(), verificacao()
     gh = prs_no_github(rows)
+    render_lines = render_snapshot(gh)
+    mission_round = latest_mission_round()
+    generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     lines = [
-        "# 🧱 LabTech — estado e fila de PRs (gerado automaticamente)",
+        f"# 🧱 LabTech — estado atual (consultado em {generated})",
         "",
-        "Fonte gerada por dev-local/notebook-estado.py só a partir de dados (fila de PRs, suíte medida "
-        "na ponta de cada PR, estado dos PRs no GitHub, branches sincronizadas, lista de pendências). "
-        "Substitui versões anteriores desta fonte. Código atualizado: fontes \"LabTech código: <repo> @ <branch>\".",
+        "Esta é a fonte mais recente de estado operacional. Para perguntas sobre o estado atual, "
+        "use esta fonte antes de conversas antigas ou notas históricas do caderno. "
+        "Os SHAs live abaixo vêm de consulta ao Render nesta execução; fontes de código não provam deploy. "
+        "PRs vêm de consulta ao GitHub nesta execução. PR aberto significa apenas que não foi mesclado "
+        "no GitHub; não prova que seu código está ausente de Production. Branch configurada também não "
+        "prova o conteúdo live: só declare correspondência quando o SHA live coincidir com o head do PR. "
+        "Rondas de MISSAO.md são registros históricos, não estado de deploy nem próximo passo automaticamente "
+        "vigente. Se uma consulta falha, esta fonte não é atualizada.",
         "",
         "## PRs na organização",
     ]
     abertos = [(r, gh[r["id"]]) for r in rows if r["id"] in gh]
     if abertos:
-        for r, (st, num) in abertos:
-            lines.append(f"- {r['id']} → {ORG}/{r['repo']}#{num}: {ESTADO.get(st, st)}. {r['titulo']}")
+        for r, (st, num, _, _) in abertos:
+            lines.append(f"- {r['id']} → {ORG}/{r['repo']}#{num}: {ESTADO.get(st, st)}; "
+                         f"head `{gh[r['id']][3][:7]}`. {r['titulo']}")
     else:
         lines.append("- Nenhum PR aberto ainda.")
     faltam = [r for r in rows if r["id"] not in gh]
@@ -162,7 +251,7 @@ def build():
     for r in rows:
         partes = [f"**{r['id']}** ({r['repo']}) {r['titulo']}"]
         st = gh.get(r["id"])
-        partes.append(f"estado: {ESTADO.get(st[0], st[0]) + ' (#' + str(st[1]) + ')' if st else 'na fila local'}")
+        partes.append(f"estado: {ESTADO.get(st[0], st[0]) + ' (#' + str(st[1]) + ', head ' + st[3][:7] + ')' if st else 'na fila local'}")
         partes.append(f"depende de: {r['depende']}")
         if r["fecha"] not in ("—", ""):
             partes.append(f"fecha: {r['fecha']}")
@@ -171,13 +260,12 @@ def build():
         if nota:
             partes.append(f"deploy: {nota}")
         lines.append("- " + "; ".join(partes))
-    lines += ["", "## Código sincronizado (uma fonte por lane de PR)"]
+    lines += ["", "## Deploys live no Render"] + render_lines
+    lines += ["", "## Última ronda registrada no quadro MISSAO.md", mission_round,
+              "A data apresentada na própria ronda é a data do registro, não a hora desta consulta.",
+              "", "## Código sincronizado (uma fonte por lane de PR)"]
     lines += [f"- {s['repo']}: {s['label']}" for s in sync.SOURCES]
-    pend = re.sub(r"<!--.*?-->\n?", "", PENDENCIAS.read_text(), flags=re.S).strip()
-    # Pendência resolvida no quadro público (cartão [D-n] fechado) sai daqui também.
-    for n in pendencias_resolvidas():
-        pend = re.sub(rf"^{n}\. .*?(?=^\d+\. |^- |\Z)", "", pend, flags=re.S | re.M)
-    lines += ["", "## O que falta (depende de pessoas ou decisões)", pend, ""]
+    lines += [""]
     return "\n".join(lines)
 
 
@@ -205,7 +293,7 @@ def main():
         print("ABORTADO: possível segredo na fonte gerada")
         return 3
     digest = hashlib.sha256(body.encode()).hexdigest()[:8]
-    title = f"{TITLE_PREFIX}fila de PRs e pendências {digest}"
+    title = f"{TITLE_PREFIX}visão atual do Reservas {digest}"
     if args.dry_run:
         print(body)
         print("título:", title)

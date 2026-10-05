@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import subprocess
 import unittest
 from pathlib import Path
@@ -51,6 +52,62 @@ class GitHubDiagnosticsTest(unittest.TestCase):
 
         self.assertIn("[REDACTED]", str(raised.exception))
         self.assertNotIn("ghp_", str(raised.exception))
+
+
+class RenderSnapshotTest(unittest.TestCase):
+    def setUp(self):
+        self.estado = load()
+
+    def test_reports_current_live_shas_and_auto_deploy_for_all_services(self):
+        services = []
+        deploys = {}
+        for i, (environment, name, _) in enumerate(self.estado.RENDER_TARGETS):
+            service_id = f"service-{i}"
+            services.append({"service": {"id": service_id, "name": name,
+                                          "branch": f"branch-{i}", "autoDeploy": "no"},
+                             "environment": {"name": environment}})
+            deploys[service_id] = [{"status": "live", "commit": {"id": f"abcdef{i}012345"}}]
+
+        def run(args, **kwargs):
+            payload = services if args[1:3] == ["services", "--output"] else deploys[args[3]]
+            return subprocess.CompletedProcess(args, 0, json.dumps(payload), "")
+
+        lines = self.estado.render_snapshot(run=run)
+        rendered = "\n".join(lines)
+        self.assertEqual(8, sum(line.startswith("- ") for line in lines))
+        for i, (_, _, label) in enumerate(self.estado.RENDER_TARGETS):
+            self.assertIn(f"{label}: live `abcdef{i}`", rendered)
+            self.assertIn("auto-deploy desligado", rendered)
+        self.assertNotIn("service-0", rendered)
+
+    def test_compares_configured_render_branch_with_pr_head_sha(self):
+        services = []
+        for i, (environment, name, _) in enumerate(self.estado.RENDER_TARGETS):
+            service_id = f"service-{i}"
+            services.append({"service": {"id": service_id, "name": name,
+                                          "branch": "pr-branch" if i == 0 else f"branch-{i}",
+                                          "autoDeploy": "yes"},
+                             "environment": {"name": environment}})
+        prs = {"PS-1": ("open", 1, "pr-branch", "abcdef0123456789")}
+
+        def run(args, **kwargs):
+            payload = services if args[1:3] == ["services", "--output"] else [
+                {"status": "live", "commit": {"id": "1234567012345678"}}
+            ]
+            return subprocess.CompletedProcess(args, 0, json.dumps(payload), "")
+
+        rendered = "\n".join(self.estado.render_snapshot(prs, run=run))
+        self.assertIn("head `abcdef0`, diferente do SHA live", rendered)
+
+    def test_missing_render_service_aborts_snapshot(self):
+        result = subprocess.CompletedProcess([], 0, "[]", "")
+        with self.assertRaisesRegex(RuntimeError, "serviços Reservas ausentes"):
+            self.estado.render_snapshot(run=lambda *args, **kwargs: result)
+
+    def test_render_command_error_is_reported_without_partial_snapshot(self):
+        failure = subprocess.CompletedProcess([], 1, "", "unauthorized")
+        with self.assertRaisesRegex(RuntimeError, "Render: listar serviços falhou"):
+            self.estado.render_snapshot(run=lambda *args, **kwargs: failure)
 
 
 if __name__ == "__main__":

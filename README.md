@@ -48,6 +48,14 @@ mensagem do CLI e orientação de diagnóstico. Avisos idênticos são limitados
 um por dia; uma falha nova avisa na hora e uma execução bem sucedida limpa o
 controle local de repetição. O estado fica em `dev-local/logs/`, fora do Git.
 
+`notebook-estado.py` atualiza a fonte de estado do NotebookLM com PRs consultados
+no GitHub, SHAs live dos oito serviços consultados no Render, branches e
+configuração de auto-deploy, além da última ronda datada de `MISSAO.md`. Cada
+fonte leva horário UTC; uma falha em qualquer consulta impede a publicação de
+um retrato parcial. A execução automática a cada 3 h substitui a fonte gerada
+anterior, e o texto instrui o NotebookLM a priorizar esse retrato sobre notas
+históricas.
+
 Advisory em pacote marcado `[BLOQUEADO PELO PAI]` (faixa do pai impede o bump):
 
 1. Confirmar o advisory (OSV/GHSA), versão corrigida, alcance no código e se é
