@@ -28,3 +28,13 @@ ao `origin` por branch de revisão, sem deixá-lo apenas local; não faça push
 direto para `main`.
 
 Fontes por serviço vêm de variáveis (`PYTHON_SERVICES_DIR`, `AUTH_SERVICE_DIR`, `INTERNAL_APIS_DIR`, `RESERVAS_WEB_DIR`); o padrão do override é a worktree da lane. Se só o código montado mudou, use `docker compose up -d --no-build`. No E2E, `E2E_WEB_MODE=static` serve o build em vez do dev server (a VM de 4 GB não comporta dev server + Chrome).
+
+### Email do API Staging no ambiente local
+
+Use `python3 sync-render-staging-env.py` para prévia e acrescente `--apply` para
+atualizar o `.env` ignorado pelo Git. O helper lê somente o serviço
+`reservas-staging-api` pela sessão autenticada do Render CLI e copia as variáveis
+Brevo para os nomes locais `DEV_BREVO_*` e `DEV_EMAIL_DRY_RUN`. Ele nunca altera
+o Render, não imprime segredos e exige que a allowlist local contenha somente
+`DEV_APPROVAL_EMAIL`. Não copia Mongo, SMTP ou destinatários remotos. Essa cópia
+não ativa envio: o Compose continua forçando `EMAIL_DRY_RUN=true`.

@@ -15,6 +15,14 @@ Leia `CLAUDE.md` antes de agir e preserve todo estado local existente.
   carrega como skill `pr-lane`).
 - Preserve worktrees, alterações locais, volumes e dados. Antes de qualquer
   teste que grave em banco, valide um backup e use dados/contas isolados.
+- Para copiar a configuração de email do API Staging para o `.env` local, use
+  `python3 sync-render-staging-env.py` para prévia e
+  `python3 sync-render-staging-env.py --apply` para gravar. O script usa a sessão do
+  Render CLI, lê somente `reservas-staging-api`, nunca altera Render, não imprime
+  segredos e copia apenas variáveis Brevo e `EMAIL_DRY_RUN`. Exige que a
+  allowlist local contenha somente o endereço definido em `DEV_APPROVAL_EMAIL`;
+  Mongo, SMTP e destinatários remotos ficam fora do `.env` local. Isso só copia
+  configuração: o Compose local mantém `EMAIL_DRY_RUN=true` e não habilita envio.
 - O remoto canônico `origin` do harness é `Lucasdoreac/dev-local`; a branch
   `main` é seu alvo de integração. Não dependa de um repositório homônimo na
   organização.
